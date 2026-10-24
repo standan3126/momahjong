@@ -1,0 +1,3692 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#063426">
+    <title>Jade Sanctuary Mahjong</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --tile-w: 64px;
+            --tile-h: 86px;
+        }
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+        }
+        /* Pin the page to the visible screen: no rubber-banding, no sideways drift, no double-tap zoom */
+        html, body {
+            position: fixed;
+            inset: 0;
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            overscroll-behavior: none;
+            touch-action: manipulation;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            color: #fef3c7;
+            background: #05231a;
+        }
+        body {
+            display: flex;
+            flex-direction: column;
+            background: radial-gradient(circle at 50% 35%, #134e3a 0%, #07291e 65%, #031710 100%);
+        }
+        button { touch-action: manipulation; }
+        .font-serif-asian {
+            font-family: 'Cinzel', serif;
+        }
+        /* Subtle Bamboo Forest Backdrop Pattern */
+        .bamboo-bg {
+            background-image:
+                radial-gradient(circle at 20% 20%, rgba(251, 191, 36, 0.06) 0%, transparent 45%),
+                radial-gradient(circle at 80% 80%, rgba(16, 185, 129, 0.08) 0%, transparent 50%),
+                repeating-linear-gradient(90deg, rgba(255,255,255,0.012) 0px, rgba(255,255,255,0.012) 2px, transparent 2px, transparent 36px);
+        }
+
+        /* Notch / home-indicator safe areas */
+        .safe-top {
+            padding-top: max(6px, env(safe-area-inset-top));
+            padding-left: max(8px, env(safe-area-inset-left));
+            padding-right: max(8px, env(safe-area-inset-right));
+        }
+        .safe-bottom {
+            padding-bottom: max(10px, env(safe-area-inset-bottom));
+            padding-left: max(8px, env(safe-area-inset-left));
+            padding-right: max(8px, env(safe-area-inset-right));
+        }
+        .safe-pad {
+            padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+        }
+
+        /* Board container is positioned & scaled entirely from JS (see fitBoard) */
+        #boardContainer {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 0;
+            height: 0;
+            transform-origin: 0 0;
+        }
+        #boardContainer.board-anim {
+            transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+
+        /* ================= 3D STACKED MAHJONG TILE =================
+           Thickness is an extruded edge (stepped shadows) down-left of the face:
+           ivory top slab (--e1/--e2) over a coloured back (--e3/--e4) that changes
+           per layer, plus a soft cast shadow that grows with height (--z). */
+        .mahjong-tile {
+            position: absolute;
+            width: var(--tile-w);
+            height: var(--tile-h);
+            cursor: pointer;
+            transition: transform 0.16s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.25s ease;
+            --e1: #f3ead3;
+            --e2: #e0d0a6;
+            --e3: #059669;
+            --e4: #065f46;
+            --rim: #cdbb8e;
+        }
+        .mahjong-tile.L1 { --e3: #0d9488; --e4: #115e59; --rim: #7fd6c4; }
+        .mahjong-tile.L2 { --e3: #d97706; --e4: #92400e; --rim: #efc169; }
+        .mahjong-tile.L3 { --e3: #dc2626; --e4: #7f1d1d; --rim: #f2a0a0; }
+        .mahjong-tile.L4 { --e3: #7c3aed; --e4: #4c1d95; --rim: #c7aaf7; }
+
+        .mahjong-tile .tile-body {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            border-radius: 10px;
+            padding: 3px;
+            background: linear-gradient(155deg, #fffdf9 0%, #f7f2e4 65%, #eadfc4 100%);
+            border: 2px solid var(--rim);
+            box-shadow:
+                -1px 1px 0 var(--e1),
+                -2px 2px 0 var(--e1),
+                -3px 3px 0 var(--e2),
+                -4px 4px 0 var(--e3),
+                -5px 5px 0 var(--e3),
+                -6px 6px 0 var(--e4),
+                -7px 7px 0 var(--e4),
+                -8px 9px 3px rgba(0, 0, 0, 0.42),
+                calc(-10px - var(--z, 0) * 3px) calc(13px + var(--z, 0) * 4px) calc(12px + var(--z, 0) * 5px) rgba(0, 0, 0, 0.45),
+                inset 0 2px 2px rgba(255, 255, 255, 0.95),
+                inset 0 -2px 3px rgba(150, 120, 60, 0.18);
+        }
+        .mahjong-tile .tile-inner {
+            width: 100%;
+            height: 100%;
+            border-radius: 7px;
+            border: 1px solid rgba(180, 155, 110, 0.35);
+            background: radial-gradient(circle at 50% 45%, #ffffff 0%, #faf5e8 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+        /* Lower layers sit in shadow; blocked tiles get dimmed on the same overlay */
+        .mahjong-tile .tile-shade {
+            position: absolute;
+            inset: 0;
+            border-radius: 8px;
+            background: #0b1a12;
+            opacity: var(--shade, 0);
+            pointer-events: none;
+            transition: opacity 0.25s ease;
+            z-index: 6;
+        }
+        .mahjong-tile.dimmed .tile-shade {
+            opacity: calc(var(--shade, 0) + 0.36);
+        }
+        /* Layer pips: one dot per storey (colour matches the layer edge) */
+        .layer-pips {
+            position: absolute;
+            bottom: 3px;
+            right: 4px;
+            display: flex;
+            gap: 2px;
+            z-index: 4;
+        }
+        .layer-pips i {
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            background: var(--e3);
+            box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.85);
+        }
+
+        /* Golden Glory Tile Variant */
+        .mahjong-tile.golden-tile { --e1: #fde68a; --e2: #f59e0b; --rim: #fef08a; }
+        .mahjong-tile.golden-tile .tile-body {
+            background: linear-gradient(145deg, #fffbeb 0%, #fde68a 50%, #f59e0b 100%);
+        }
+        .mahjong-tile.golden-tile .tile-inner {
+            background: radial-gradient(circle at 50% 40%, #fffbeb 0%, #fef3c7 75%, #fde68a 100%);
+            border-color: rgba(217, 119, 6, 0.45);
+        }
+        @keyframes goldShine {
+            0%, 100% { opacity: 0; transform: translateX(-120%) rotate(20deg); }
+            50% { opacity: 0.75; transform: translateX(120%) rotate(20deg); }
+        }
+        .golden-tile .tile-inner::after {
+            content: '';
+            position: absolute;
+            inset: -20%;
+            background: linear-gradient(90deg, transparent 40%, rgba(255,255,255,0.85) 50%, transparent 60%);
+            animation: goldShine 2.8s ease-in-out infinite;
+            pointer-events: none;
+        }
+
+        /* Selected Tile State */
+        .mahjong-tile.selected {
+            transform: translate(3px, -9px) scale(1.07) !important;
+            z-index: 99999 !important;
+        }
+        .mahjong-tile.selected .tile-body {
+            border-color: #f59e0b;
+            background: linear-gradient(155deg, #ffffff 0%, #fef3c7 100%);
+            box-shadow:
+                -1px 1px 0 #fde68a, -2px 2px 0 #fcd34d, -3px 3px 0 #f59e0b,
+                -4px 4px 0 #d97706, -5px 5px 0 #d97706, -6px 6px 0 #b45309, -7px 7px 0 #92400e,
+                0 0 0 3px rgba(251, 191, 36, 0.95),
+                0 0 26px 7px rgba(251, 191, 36, 0.75),
+                -14px 22px 22px rgba(0, 0, 0, 0.6);
+        }
+
+        /* Hint Pulse Animation */
+        @keyframes hintGlow {
+            0%, 100% { transform: translate(0, 0) scale(1); filter: drop-shadow(0 0 0px #38bdf8); }
+            50% { transform: translate(2px, -6px) scale(1.05); filter: drop-shadow(0 0 16px #34d399); }
+        }
+        .mahjong-tile.hinted, .mahjong-tile.coach-target {
+            animation: hintGlow 0.9s infinite ease-in-out;
+            z-index: 9500 !important;
+        }
+        .mahjong-tile.hinted .tile-body, .mahjong-tile.coach-target .tile-body {
+            border-color: #10b981;
+            box-shadow:
+                -2px 2px 0 #34d399, -4px 4px 0 #059669, -6px 6px 0 #047857, -7px 7px 0 #065f46,
+                0 0 0 3px rgba(52, 211, 153, 0.9),
+                0 0 22px 5px rgba(52, 211, 153, 0.85);
+        }
+
+        /* Eagle Eye Same-Kind Highlight */
+        .mahjong-tile.xray-match .tile-body {
+            border-color: #38bdf8;
+            box-shadow:
+                -2px 2px 0 #7dd3fc, -4px 4px 0 #0284c7, -6px 6px 0 #0369a1, -7px 7px 0 #075985,
+                0 0 0 3px rgba(56, 189, 248, 0.9),
+                0 0 20px 4px rgba(56, 189, 248, 0.85);
+        }
+
+        /* Invalid Shake Animation */
+        @keyframes shakeError {
+            0%, 100% { transform: translateX(0); }
+            20% { transform: translateX(-6px) rotate(-2deg); }
+            40% { transform: translateX(6px) rotate(2deg); }
+            60% { transform: translateX(-4px) rotate(-1deg); }
+            80% { transform: translateX(4px) rotate(1deg); }
+        }
+        .mahjong-tile.shake { animation: shakeError 0.36s ease; }
+
+        /* Match Pop Disappear */
+        @keyframes matchVanish {
+            0% { transform: scale(1.08); opacity: 1; }
+            40% { transform: translateY(-16px) scale(1.2); opacity: 1; filter: brightness(1.4); }
+            100% { transform: translateY(-28px) scale(0.1) rotate(12deg); opacity: 0; }
+        }
+        .mahjong-tile.matching {
+            animation: matchVanish 0.34s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+            pointer-events: none;
+            z-index: 99998 !important;
+        }
+
+        /* Shuffle swirl-in */
+        @keyframes shuffleIn {
+            0% { transform: scale(0.2) rotate(-200deg); opacity: 0; }
+            100% { transform: scale(1) rotate(0); opacity: 1; }
+        }
+        .mahjong-tile.shuffle-in { animation: shuffleIn 0.55s cubic-bezier(0.2, 1.2, 0.4, 1) both; }
+
+        /* Mystery Tile Overlay */
+        .mystery-cover {
+            position: absolute;
+            inset: 0;
+            border-radius: 7px;
+            background: linear-gradient(135deg, #4c1d95 0%, #311068 60%, #1e0942 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border: 1.5px solid #c084fc;
+            transition: opacity 0.3s ease, transform 0.3s ease;
+            z-index: 5;
+        }
+        .mystery-cover.peeking { opacity: 0.12; pointer-events: none; }
+        .mystery-cover.reveal-out { opacity: 0; transform: scale(1.3) rotate(8deg); }
+
+        /* Corner Suit Mini Badge for Extra Clarity */
+        .tile-corner-badge {
+            position: absolute;
+            top: 2px;
+            left: 3px;
+            font-size: 11px;
+            font-weight: 800;
+            line-height: 1;
+            padding: 1px 3px;
+            border-radius: 4px;
+            z-index: 3;
+            letter-spacing: -0.03em;
+        }
+
+        /* Floating Banners */
+        @keyframes floatUpFade {
+            0% { transform: translate(-50%, 10px) scale(0.8); opacity: 0; }
+            20% { transform: translate(-50%, -4px) scale(1.05); opacity: 1; }
+            80% { transform: translate(-50%, -18px) scale(1); opacity: 1; }
+            100% { transform: translate(-50%, -30px) scale(0.9); opacity: 0; }
+        }
+        .floating-banner {
+            animation: floatUpFade 1.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+            pointer-events: none;
+        }
+        @keyframes pointsUp {
+            0% { transform: translate(-50%, 0) scale(0.6); opacity: 0; }
+            20% { transform: translate(-50%, -10px) scale(1.15); opacity: 1; }
+            100% { transform: translate(-50%, -54px) scale(1); opacity: 0; }
+        }
+        .pop-points {
+            position: fixed;
+            font-weight: 800;
+            font-size: 15px;
+            text-shadow: 0 2px 0 rgba(0,0,0,0.6), 0 0 10px rgba(0,0,0,0.5);
+            animation: pointsUp 0.9s ease-out forwards;
+            pointer-events: none;
+            white-space: nowrap;
+        }
+
+        /* Combo Announcer */
+        @keyframes announcePop {
+            0% { transform: scale(0.3) rotate(-8deg); opacity: 0; }
+            22% { transform: scale(1.18) rotate(3deg); opacity: 1; }
+            40% { transform: scale(1) rotate(0); }
+            78% { opacity: 1; }
+            100% { transform: scale(1.08) translateY(-24px); opacity: 0; }
+        }
+        .announce {
+            position: absolute;
+            text-align: center;
+            font-family: 'Cinzel', serif;
+            font-weight: 800;
+            font-size: clamp(30px, 10vw, 54px);
+            line-height: 1;
+            -webkit-text-stroke: 1.5px rgba(0, 0, 0, 0.55);
+            text-shadow: 0 4px 0 rgba(0, 0, 0, 0.45), 0 0 26px currentColor;
+            animation: announcePop 1.05s cubic-bezier(0.2, 0.9, 0.3, 1.2) forwards;
+            pointer-events: none;
+            white-space: nowrap;
+        }
+        .announce small {
+            display: block;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 0.36em;
+            letter-spacing: 0.2em;
+            margin-top: 6px;
+        }
+
+        @keyframes screenShake {
+            0%, 100% { transform: translate(0, 0); }
+            20% { transform: translate(-5px, 3px); }
+            40% { transform: translate(5px, -3px); }
+            60% { transform: translate(-3px, -2px); }
+            80% { transform: translate(3px, 2px); }
+        }
+        .screen-shake { animation: screenShake 0.38s ease; }
+
+        /* Chance Chest Wheel */
+        #prizeWheel { transition: transform 3.8s cubic-bezier(0.12, 0.85, 0.18, 1); }
+        #wheelWrap {
+            width: min(70vw, 290px, 34dvh);
+            height: min(70vw, 290px, 34dvh);
+        }
+        @keyframes pointerWiggle {
+            0%, 100% { transform: translateX(-50%) rotate(0); }
+            50% { transform: translateX(-50%) rotate(-14deg); }
+        }
+        #wheelPointer.wiggle { animation: pointerWiggle 0.12s ease; }
+        .legend-item { transition: transform 0.2s ease, background 0.2s ease; }
+        .legend-item.win {
+            background: rgba(245, 158, 11, 0.28);
+            border-color: #fbbf24;
+            transform: scale(1.06);
+            box-shadow: 0 0 16px rgba(251, 191, 36, 0.55);
+        }
+        @keyframes starPop {
+            0% { transform: scale(0.2) rotate(-40deg); opacity: 0.25; filter: grayscale(1); }
+            60% { transform: scale(1.4) rotate(10deg); opacity: 1; filter: none; }
+            100% { transform: scale(1) rotate(0); opacity: 1; filter: none; }
+        }
+        .star { display: inline-block; opacity: 0.25; filter: grayscale(1); }
+        .star.on { animation: starPop 0.45s cubic-bezier(0.2, 1.4, 0.4, 1) forwards; }
+        @keyframes prizeReveal {
+            0% { transform: scale(0.2) rotate(-30deg); opacity: 0; }
+            70% { transform: scale(1.25) rotate(8deg); opacity: 1; }
+            100% { transform: scale(1) rotate(0); opacity: 1; }
+        }
+        .prize-reveal { animation: prizeReveal 0.5s cubic-bezier(0.2, 1.4, 0.4, 1) both; }
+        .fly-icon {
+            position: fixed;
+            z-index: 59;
+            font-size: 44px;
+            pointer-events: none;
+            transition: transform 0.85s cubic-bezier(0.5, -0.35, 0.6, 1), opacity 0.85s ease;
+        }
+
+        /* Dock */
+        @keyframes bump {
+            0%, 100% { transform: scale(1); }
+            40% { transform: scale(1.22); }
+        }
+        .bump { animation: bump 0.45s ease; }
+        @keyframes newPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.18); }
+        }
+        .new-badge {
+            position: absolute;
+            top: -8px;
+            left: -4px;
+            background: #ef4444;
+            color: #fff;
+            font-size: 9px;
+            font-weight: 800;
+            padding: 1px 5px;
+            border-radius: 999px;
+            border: 1.5px solid #fff;
+            animation: newPulse 1s infinite;
+        }
+
+        /* Tutorial coach marks */
+        #coachLayer { position: fixed; inset: 0; z-index: 60; pointer-events: none; }
+        #coachSpot {
+            position: fixed;
+            border-radius: 18px;
+            box-shadow: 0 0 0 200vmax rgba(0, 0, 0, 0.6);
+            border: 3px solid #fbbf24;
+            transition: left 0.35s cubic-bezier(0.22, 1, 0.36, 1), top 0.35s cubic-bezier(0.22, 1, 0.36, 1), width 0.35s cubic-bezier(0.22, 1, 0.36, 1), height 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+            pointer-events: none;
+        }
+        @keyframes spotPulse {
+            50% { border-color: #fde68a; box-shadow: 0 0 0 200vmax rgba(0, 0, 0, 0.6), 0 0 26px 8px rgba(251, 191, 36, 0.8); }
+        }
+        #coachSpot.pulse { animation: spotPulse 1.2s infinite; }
+        #coachSpot.empty { border-color: transparent; }
+        @keyframes fingerUp { 50% { transform: translateY(-10px); } }
+        @keyframes fingerDown { 50% { transform: translateY(10px); } }
+        #coachFinger {
+            position: fixed;
+            font-size: 42px;
+            line-height: 1;
+            pointer-events: none;
+            filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.6));
+            animation: fingerUp 0.9s infinite ease-in-out;
+        }
+        #coachFinger.down { animation-name: fingerDown; }
+        #coachBubble {
+            position: fixed;
+            pointer-events: auto;
+            width: min(340px, calc(100vw - 24px));
+            background: linear-gradient(180deg, #065f46 0%, #022c22 100%);
+            border: 2px solid #fbbf24;
+            border-radius: 20px;
+            padding: 12px 14px;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+        }
+        #coachBubble.passive { pointer-events: none; opacity: 0.96; }
+        #coachBubble.nudge { animation: shakeError 0.36s ease; }
+
+        /* Title screen */
+        @keyframes floaty {
+            0%, 100% { transform: translateY(0) rotate(var(--r, 0deg)); }
+            50% { transform: translateY(-10px) rotate(var(--r, 0deg)); }
+        }
+        .title-tile { position: relative; width: 64px; height: 86px; animation: floaty 3.2s ease-in-out infinite; }
+        .title-tile .mahjong-tile { position: relative; }
+        @keyframes popIn {
+            0% { transform: scale(0.85); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .pop-in { animation: popIn 0.28s cubic-bezier(0.2, 1.3, 0.4, 1); }
+
+        /* Custom Scrollbar for Modals */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); border-radius: 8px; }
+        ::-webkit-scrollbar-thumb { background: rgba(245, 158, 11, 0.5); border-radius: 8px; }
+        input[type=range] { accent-color: #fbbf24; }
+    </style>
+</head>
+<body class="bamboo-bg select-none">
+
+    <!-- TOP HUD BAR -->
+    <header id="hud" class="safe-top w-full shrink-0 z-30 pb-1 bg-gradient-to-b from-black/70 via-black/40 to-transparent">
+        <div class="max-w-xl mx-auto grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-1.5">
+
+            <!-- Level & Board Info -->
+            <div id="levelBox" class="flex items-center gap-1.5 min-w-0 bg-emerald-950/85 border border-amber-500/40 rounded-2xl pl-1 pr-2 py-1 shadow-lg">
+                <div id="levelBadge" class="min-w-[34px] h-[34px] px-1 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-emerald-950 font-extrabold text-sm shadow-inner">1</div>
+                <div class="min-w-0">
+                    <div id="formationName" class="text-[10px] uppercase tracking-wide text-amber-300/90 font-bold leading-none truncate max-w-[96px] sm:max-w-[180px]">Sanctuary</div>
+                    <div class="text-[12px] font-extrabold text-white flex items-center gap-2 mt-1 leading-none whitespace-nowrap">
+                        <span id="tilesBox" title="Tiles left">🀄<strong id="tilesLeftCount" class="text-amber-300 ml-0.5">0</strong></span>
+                        <span id="pairsBox" title="Free pairs">✅<strong id="availPairsCount" class="text-emerald-300 ml-0.5">0</strong></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Rank & Score -->
+            <div id="rankBox" onclick="openModal('guideModal')" class="min-w-0 bg-emerald-950/85 border border-emerald-600/40 rounded-2xl px-2.5 py-1.5 shadow-lg cursor-pointer active:scale-95 transition">
+                <div class="flex items-center justify-between gap-1 text-[10px] font-bold leading-none">
+                    <span id="rankTitle" class="text-amber-300 truncate min-w-0">🌱 Novice</span>
+                    <span id="scoreDisplay" class="text-white font-extrabold shrink-0">0</span>
+                </div>
+                <div class="w-full h-2 bg-black/50 rounded-full overflow-hidden mt-1.5 border border-emerald-700/50">
+                    <div id="rankProgressBar" class="h-full bg-gradient-to-r from-emerald-400 via-amber-400 to-amber-500 transition-all duration-500" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <!-- Quick Utility Buttons -->
+            <div class="flex items-center gap-1">
+                <button id="guideBtn" onclick="openModal('guideModal')" title="Guide" class="w-9 h-9 rounded-xl bg-emerald-950/85 border border-amber-500/40 flex items-center justify-center text-amber-300 active:scale-90 transition shadow-lg">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+                    </svg>
+                </button>
+                <button id="settingsBtn" onclick="openModal('settingsModal')" title="Settings" class="w-9 h-9 rounded-xl bg-emerald-950/85 border border-amber-500/40 flex items-center justify-center text-amber-300 active:scale-90 transition shadow-lg">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Combo / Status Sub-Bar -->
+        <div class="max-w-xl mx-auto mt-1 flex items-center gap-1.5 h-6 min-w-0">
+            <div id="comboContainer" class="opacity-0 transition-opacity duration-300 shrink-0 flex items-center gap-1.5 bg-amber-500/20 border border-amber-400/50 rounded-full px-2 py-0.5">
+                <span class="text-[11px] font-extrabold text-amber-300" id="comboText">COMBO x2</span>
+                <div class="w-12 h-1.5 bg-black/50 rounded-full overflow-hidden">
+                    <div id="comboTimerBar" class="h-full bg-gradient-to-r from-amber-300 to-orange-500" style="width: 100%"></div>
+                </div>
+            </div>
+            <div id="eagleEyeActiveBadge" class="hidden shrink-0 items-center gap-1 bg-sky-500/25 border border-sky-400/60 text-sky-200 text-[10px] font-bold px-2 py-0.5 rounded-full animate-pulse">🦅 Eagle Eye</div>
+            <div id="modifierBadge" class="hidden truncate min-w-0 text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-500/25 border border-purple-400/60 text-purple-100"></div>
+            <div id="spinMeter" class="ml-auto shrink-0 flex items-center gap-1 text-[11px] font-extrabold bg-black/40 border border-amber-400/40 rounded-full px-2 py-0.5 text-amber-200">🎁 <span id="chestBonusCount" class="text-amber-300">1/3</span></div>
+        </div>
+    </header>
+
+    <!-- MAIN BOARD STAGE -->
+    <main id="boardViewport" class="relative flex-1 min-h-0 w-full overflow-hidden">
+        <div id="boardContainer"></div>
+        <div id="floatingTextLayer" class="pointer-events-none absolute inset-0 overflow-hidden z-40"></div>
+        <div id="announcer" class="pointer-events-none absolute inset-0 z-40 flex items-center justify-center"></div>
+        <button id="autoCompleteBtn" onclick="triggerAutoComplete()" class="hidden absolute bottom-3 inset-x-0 mx-auto w-max z-40 bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500 text-emerald-950 font-extrabold px-6 py-3 rounded-full shadow-[0_0_30px_rgba(251,191,36,0.85)] border-2 border-white flex items-center gap-2 text-sm animate-bounce whitespace-nowrap">
+            ✨ Auto-Complete!
+        </button>
+    </main>
+
+    <!-- BOTTOM POWER-UP DOCK -->
+    <footer id="dock" class="safe-bottom w-full shrink-0 pt-1.5 z-30 bg-gradient-to-t from-black/80 via-black/45 to-transparent">
+        <div class="max-w-xl mx-auto grid grid-cols-5 gap-1.5">
+            <button id="btnHint" onclick="useHint()" class="relative bg-gradient-to-b from-emerald-800/90 to-emerald-950/95 border border-amber-400/40 rounded-2xl min-h-[58px] py-1.5 px-0.5 flex flex-col items-center justify-center shadow-lg active:scale-95 transition">
+                <span class="text-2xl leading-none">💡</span>
+                <span class="text-[10px] font-bold text-amber-100 mt-1 leading-none">Hint</span>
+                <span id="badgeHint" class="absolute -top-1.5 -right-1 min-w-[22px] h-[22px] px-1 rounded-full bg-amber-400 text-emerald-950 font-extrabold text-xs flex items-center justify-center shadow border border-white">0</span>
+            </button>
+            <button id="btnShuffle" onclick="useShuffle()" class="relative bg-gradient-to-b from-emerald-800/90 to-emerald-950/95 border border-amber-400/40 rounded-2xl min-h-[58px] py-1.5 px-0.5 flex flex-col items-center justify-center shadow-lg active:scale-95 transition">
+                <span class="text-2xl leading-none">🌪️</span>
+                <span class="text-[10px] font-bold text-amber-100 mt-1 leading-none">Shuffle</span>
+                <span id="badgeShuffle" class="absolute -top-1.5 -right-1 min-w-[22px] h-[22px] px-1 rounded-full bg-amber-400 text-emerald-950 font-extrabold text-xs flex items-center justify-center shadow border border-white">0</span>
+            </button>
+            <button id="btnUndo" onclick="useUndo()" class="relative bg-gradient-to-b from-emerald-800/90 to-emerald-950/95 border border-amber-400/40 rounded-2xl min-h-[58px] py-1.5 px-0.5 flex flex-col items-center justify-center shadow-lg active:scale-95 transition">
+                <span class="text-2xl leading-none">📜</span>
+                <span class="text-[10px] font-bold text-amber-100 mt-1 leading-none">Undo</span>
+                <span id="badgeUndo" class="absolute -top-1.5 -right-1 min-w-[22px] h-[22px] px-1 rounded-full bg-amber-400 text-emerald-950 font-extrabold text-xs flex items-center justify-center shadow border border-white">0</span>
+            </button>
+            <button id="btnTorch" onclick="useDragonTorch()" class="relative bg-gradient-to-b from-amber-800/80 to-emerald-950/95 border border-amber-400/60 rounded-2xl min-h-[58px] py-1.5 px-0.5 flex flex-col items-center justify-center shadow-lg active:scale-95 transition">
+                <span class="text-2xl leading-none">🔥</span>
+                <span class="text-[10px] font-bold text-amber-200 mt-1 leading-none">Torch</span>
+                <span id="badgeTorch" class="absolute -top-1.5 -right-1 min-w-[22px] h-[22px] px-1 rounded-full bg-orange-400 text-emerald-950 font-extrabold text-xs flex items-center justify-center shadow border border-white">0</span>
+                <span id="newTorch" class="new-badge hidden">NEW</span>
+            </button>
+            <button id="btnEagle" onclick="useEagleEye()" class="relative bg-gradient-to-b from-sky-900/80 to-emerald-950/95 border border-sky-400/50 rounded-2xl min-h-[58px] py-1.5 px-0.5 flex flex-col items-center justify-center shadow-lg active:scale-95 transition">
+                <span class="text-2xl leading-none">🦅</span>
+                <span class="text-[10px] font-bold text-sky-200 mt-1 leading-none">Eagle</span>
+                <span id="badgeEagle" class="absolute -top-1.5 -right-1 min-w-[22px] h-[22px] px-1 rounded-full bg-sky-400 text-emerald-950 font-extrabold text-xs flex items-center justify-center shadow border border-white">0</span>
+                <span id="newEagle" class="new-badge hidden">NEW</span>
+            </button>
+        </div>
+    </footer>
+
+    <!-- Particle / confetti canvas (above modals, below tutorial coach) -->
+    <canvas id="fxCanvas" class="pointer-events-none fixed inset-0 w-full h-full z-[58]"></canvas>
+    <div id="popLayer" class="pointer-events-none fixed inset-0 z-[57]"></div>
+
+    <!-- ==========================================
+         IMPERIAL CHANCE CHEST MODAL (END OF LEVEL)
+         ========================================== -->
+    <div id="chestModal" class="hidden fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center safe-pad">
+        <div class="pop-in w-full max-w-md max-h-full overflow-y-auto bg-gradient-to-b from-emerald-900 via-emerald-950 to-black border-2 border-amber-400 rounded-3xl p-4 text-center shadow-[0_0_50px_rgba(245,158,11,0.4)] relative">
+            <div class="inline-block px-3 py-1 rounded-full bg-amber-400/20 border border-amber-400/50 text-amber-300 text-xs font-extrabold tracking-widest uppercase">
+                Level <span id="completedLevelNum">1</span> Complete!
+            </div>
+            <div id="starRow" class="flex justify-center gap-3 text-4xl mt-2 leading-none">
+                <span class="star">⭐</span><span class="star">⭐</span><span class="star">⭐</span>
+            </div>
+            <div id="levelStats" class="text-[11px] text-emerald-200/90 mt-1.5 font-semibold"></div>
+            <h2 class="text-xl font-serif-asian font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-yellow-400 to-amber-200 mt-2">
+                Imperial Chance Chest
+            </h2>
+
+            <div id="wheelWrap" class="relative mx-auto my-3 flex items-center justify-center">
+                <div id="wheelPointer" class="absolute -top-3 left-1/2 z-20 drop-shadow-[0_4px_6px_rgba(0,0,0,0.8)]" style="transform: translateX(-50%); transform-origin: 50% 20%;">
+                    <svg width="34" height="34" viewBox="0 0 34 34"><polygon points="17,32 4,6 30,6" fill="#f59e0b" stroke="#ffffff" stroke-width="2.5"/></svg>
+                </div>
+                <div id="prizeWheel" class="w-full h-full rounded-full shadow-[0_0_30px_rgba(251,191,36,0.45)] border-4 border-amber-400 overflow-hidden">
+                    <svg id="wheelSvg" viewBox="0 0 200 200" class="w-full h-full"></svg>
+                </div>
+                <div class="absolute w-14 h-14 rounded-full bg-gradient-to-br from-amber-300 via-amber-500 to-amber-700 border-2 border-white shadow-xl flex items-center justify-center text-2xl z-10">🎁</div>
+            </div>
+
+            <div id="spinsLeftBanner" class="text-xs font-extrabold text-amber-300 mb-2">
+                Spins left: <span id="spinsRemainingNum" class="text-white text-base">1</span> <span class="text-emerald-300/70 font-bold">(max 3 per level)</span>
+            </div>
+
+            <div id="prizeResultBox" class="min-h-[76px] bg-black/45 border border-amber-500/30 rounded-2xl p-2.5 mb-3 flex items-center gap-3 text-left">
+                <div id="prizeResultIcon" class="text-5xl leading-none w-14 text-center shrink-0">🎁</div>
+                <div class="min-w-0">
+                    <div id="prizeResultTitle" class="text-base font-extrabold text-amber-300 leading-tight">Tap SPIN to claim your reward!</div>
+                    <div id="prizeResultDesc" class="text-xs text-emerald-200 mt-0.5">Match Golden Tiles to earn extra spins (up to 3).</div>
+                    <div id="prizeResultInv" class="text-xs font-extrabold text-white mt-1"></div>
+                </div>
+            </div>
+
+            <div class="flex gap-3">
+                <button id="spinChestBtn" onclick="spinChanceChest()" class="flex-1 py-3.5 rounded-2xl bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500 text-emerald-950 font-extrabold text-base shadow-[0_0_25px_rgba(251,191,36,0.6)] active:scale-95 transition">
+                    🎰 SPIN!
+                </button>
+                <button id="nextLevelBtn" onclick="proceedToNextLevel()" class="hidden flex-1 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-400 to-teal-500 text-emerald-950 font-extrabold text-base shadow-[0_0_25px_rgba(52,211,153,0.6)] active:scale-95 transition">
+                    NEXT LEVEL ➡️
+                </button>
+            </div>
+
+            <div class="text-[10px] font-bold uppercase tracking-widest text-emerald-300/70 mt-3 mb-1.5">Possible treasures</div>
+            <div id="prizeLegend" class="grid grid-cols-3 gap-1.5"></div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         NO MOVES REMAINING MODAL
+         ========================================== -->
+    <div id="noMovesModal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center safe-pad">
+        <div class="pop-in w-full max-w-sm bg-emerald-950 border-2 border-amber-400 rounded-3xl p-5 text-center shadow-2xl">
+            <div class="text-4xl mb-2">🏮</div>
+            <h3 class="text-xl font-serif-asian font-extrabold text-amber-300">No Free Pairs Left!</h3>
+            <p class="text-xs text-emerald-100/90 mt-1 mb-4">The winds have shifted and no open matches remain. Pick a rescue:</p>
+            <div class="flex flex-col gap-2.5">
+                <button onclick="closeModal('noMovesModal'); useShuffle(true);" class="w-full py-3 rounded-2xl bg-gradient-to-r from-amber-400 to-amber-500 text-emerald-950 font-extrabold text-sm shadow-lg active:scale-95 transition">
+                    🌪️ Shuffle (free rescue if you have none)
+                </button>
+                <button onclick="closeModal('noMovesModal'); useUndo();" class="w-full py-3 rounded-2xl bg-gradient-to-r from-sky-500 to-indigo-500 text-white font-extrabold text-sm shadow-lg active:scale-95 transition">
+                    📜 Undo Last Pair
+                </button>
+                <button onclick="closeModal('noMovesModal'); useDragonTorch();" class="w-full py-3 rounded-2xl bg-gradient-to-r from-orange-500 to-red-500 text-white font-extrabold text-sm shadow-lg active:scale-95 transition">
+                    🔥 Dragon Torch
+                </button>
+                <button onclick="restartLevel()" class="w-full py-2.5 rounded-2xl bg-emerald-900 border border-emerald-600 text-emerald-200 font-bold text-xs active:scale-95 transition">
+                    🔄 Restart Level
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         GUIDE MODAL
+         ========================================== -->
+    <div id="guideModal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center safe-pad">
+        <div class="pop-in w-full max-w-md max-h-full bg-emerald-950 border-2 border-amber-400/80 rounded-3xl p-4 flex flex-col shadow-2xl">
+            <div class="flex items-center justify-between border-b border-emerald-800 pb-3">
+                <h3 class="text-lg font-serif-asian font-extrabold text-amber-300">🎋 Sanctuary Guide</h3>
+                <button onclick="closeModal('guideModal')" class="w-9 h-9 rounded-full bg-emerald-900 text-amber-300 font-bold">✕</button>
+            </div>
+
+            <div class="overflow-y-auto space-y-3 my-3 pr-1 text-xs text-emerald-100 min-h-0">
+                <div class="bg-black/35 border border-emerald-700/50 rounded-2xl p-3 space-y-1.5">
+                    <div class="font-extrabold text-amber-300 text-sm">🀄 How to Play</div>
+                    <div>Tap two <strong>identical free tiles</strong> to clear them. Clear every tile to win!</div>
+                    <div>A tile is <strong>free</strong> when nothing sits on top of it and its <strong>left or right</strong> side is open. Blocked tiles look dimmed.</div>
+                    <div>Coloured tile edges show the layer: <span class="text-emerald-300">jade</span> → <span class="text-teal-300">teal</span> → <span class="text-amber-300">gold</span> → <span class="text-red-300">crimson</span> → <span class="text-violet-300">violet</span> (higher). Dots in the corner count the storeys.</div>
+                    <div>Match quickly to build <strong>COMBOS</strong> for big points.</div>
+                </div>
+
+                <div class="bg-black/35 border border-amber-500/30 rounded-2xl p-3">
+                    <div class="font-extrabold text-amber-300 text-sm mb-1">🏆 Sanctuary Rank</div>
+                    <p class="text-emerald-200/90 leading-relaxed">
+                        Win <strong class="text-amber-300">Golden Bamboo Charms (🎋)</strong> from the Chance Chest to raise your permanent rank. Higher ranks multiply your score and can trigger a free <strong class="text-emerald-300">Divine Blessing</strong> match.
+                    </p>
+                    <div class="mt-2 grid grid-cols-2 gap-1.5 text-[11px]">
+                        <div class="bg-emerald-900/60 p-1.5 rounded-lg">🌱 <strong>Novice:</strong> 1.0x</div>
+                        <div class="bg-emerald-900/60 p-1.5 rounded-lg">🥈 <strong>Silver:</strong> 1.2x • 5%</div>
+                        <div class="bg-emerald-900/60 p-1.5 rounded-lg">🟢 <strong>Jade:</strong> 1.5x • 9%</div>
+                        <div class="bg-emerald-900/60 p-1.5 rounded-lg">🟡 <strong>Sage:</strong> 1.8x • 12%</div>
+                        <div class="bg-emerald-900/60 p-1.5 rounded-lg col-span-2">👑 <strong>Imperial Master:</strong> 2.2x • 16% Blessing</div>
+                    </div>
+                </div>
+
+                <div class="bg-black/35 border border-emerald-700/50 rounded-2xl p-3 space-y-1.5">
+                    <div class="font-extrabold text-amber-300 text-sm">🎁 Power-Ups</div>
+                    <div><strong>💡 Hint:</strong> Highlights a free matching pair.</div>
+                    <div><strong>🌪️ Shuffle:</strong> Rearranges remaining tiles into a solvable order.</div>
+                    <div><strong>📜 Undo:</strong> Brings your last matched pair back.</div>
+                    <div><strong>🔥 Torch</strong> &amp; <strong>🦅 Eagle:</strong> Rare relics… try them and find out! 😉</div>
+                </div>
+
+                <div class="bg-black/35 border border-emerald-700/50 rounded-2xl p-3 space-y-1.5">
+                    <div class="font-extrabold text-amber-300 text-sm">✨ Special Tiles &amp; Levels</div>
+                    <div><strong class="text-yellow-300">🌟 Golden tiles:</strong> 2x points and +1 chest spin (max 3 spins per level).</div>
+                    <div><strong class="text-purple-300">🔮 Mystery tiles:</strong> Hidden until they become free. Tap to peek.</div>
+                    <div><strong class="text-red-300">👹 Boss boards</strong> appear every 10 levels after 30, and some levels have a special <strong class="text-purple-300">modifier</strong>.</div>
+                </div>
+
+                <button onclick="replayTraining()" class="w-full py-2.5 rounded-2xl bg-emerald-800 border border-amber-400/40 text-amber-200 font-extrabold text-xs active:scale-95 transition">
+                    🎓 Replay Sanctuary Training
+                </button>
+            </div>
+
+            <button onclick="closeModal('guideModal')" class="w-full py-3 rounded-2xl bg-amber-400 text-emerald-950 font-extrabold text-sm shrink-0">
+                Back to Sanctuary
+            </button>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         SETTINGS MODAL
+         ========================================== -->
+    <div id="settingsModal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center safe-pad">
+        <div class="pop-in w-full max-w-sm max-h-full overflow-y-auto bg-emerald-950 border-2 border-amber-400/80 rounded-3xl p-4 flex flex-col shadow-2xl">
+            <div class="flex items-center justify-between border-b border-emerald-800 pb-3 mb-3">
+                <h3 class="text-lg font-serif-asian font-extrabold text-amber-300">⚙️ Settings</h3>
+                <button onclick="closeModal('settingsModal')" class="w-9 h-9 rounded-full bg-emerald-900 text-amber-300 font-bold">✕</button>
+            </div>
+
+            <div class="space-y-2 text-sm">
+                <label class="flex items-center justify-between bg-black/35 p-3 rounded-2xl border border-emerald-800 cursor-pointer">
+                    <span class="font-bold text-amber-100">🔊 Sound Effects</span>
+                    <input type="checkbox" id="toggleSound" onchange="updateSettings()" class="w-5 h-5 accent-amber-400 rounded">
+                </label>
+                <label class="flex items-center justify-between bg-black/35 p-3 rounded-2xl border border-emerald-800 cursor-pointer">
+                    <span class="font-bold text-amber-100">🎵 Zen Music</span>
+                    <input type="checkbox" id="toggleMusic" onchange="updateSettings()" class="w-5 h-5 accent-amber-400 rounded">
+                </label>
+                <div class="bg-black/35 p-3 rounded-2xl border border-emerald-800">
+                    <div class="flex items-center justify-between font-bold text-amber-100"><span>🎚️ Volume</span><span id="volumeLabel" class="text-amber-300 text-xs">80%</span></div>
+                    <input type="range" id="volumeSlider" min="0" max="100" step="5" oninput="updateSettings()" class="w-full mt-2">
+                </div>
+                <label class="flex items-center justify-between bg-black/35 p-3 rounded-2xl border border-emerald-800 cursor-pointer">
+                    <div>
+                        <div class="font-bold text-amber-100">📳 Vibration</div>
+                        <div class="text-[11px] text-emerald-300">Android only (iPhone browsers can't vibrate)</div>
+                    </div>
+                    <input type="checkbox" id="toggleHaptics" onchange="updateSettings()" class="w-5 h-5 accent-amber-400 rounded">
+                </label>
+                <label class="flex items-center justify-between bg-black/35 p-3 rounded-2xl border border-emerald-800 cursor-pointer">
+                    <div>
+                        <div class="font-bold text-amber-100">🔆 Highlight Free Tiles</div>
+                        <div class="text-[11px] text-emerald-300">Dims blocked tiles</div>
+                    </div>
+                    <input type="checkbox" id="toggleHighlightFree" onchange="updateSettings()" class="w-5 h-5 accent-amber-400 rounded">
+                </label>
+                <label class="flex items-center justify-between bg-black/35 p-3 rounded-2xl border border-emerald-800 cursor-pointer">
+                    <div>
+                        <div class="font-bold text-amber-100">⏩ Auto Next Level</div>
+                        <div class="text-[11px] text-emerald-300">Starts the next level 3s after your last spin</div>
+                    </div>
+                    <input type="checkbox" id="toggleAutoNext" onchange="updateSettings()" class="w-5 h-5 accent-amber-400 rounded">
+                </label>
+            </div>
+
+            <div class="mt-4 flex flex-col gap-2">
+                <button onclick="restartLevel()" class="w-full py-3 rounded-2xl bg-emerald-800 text-amber-200 font-extrabold text-xs border border-amber-400/40">
+                    🔄 Restart Current Level
+                </button>
+                <button id="skipTrainingBtn" onclick="skipTraining()" class="hidden w-full py-3 rounded-2xl bg-emerald-800 text-amber-200 font-extrabold text-xs border border-amber-400/40">
+                    ⏭️ Skip Training
+                </button>
+                <button onclick="goMainMenu()" class="w-full py-3 rounded-2xl bg-emerald-800 text-amber-200 font-extrabold text-xs border border-amber-400/40">
+                    💾 Main Menu / Switch Save Slot
+                </button>
+                <button onclick="closeModal('settingsModal')" class="w-full py-3 rounded-2xl bg-amber-400 text-emerald-950 font-extrabold text-sm">
+                    Resume Game
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         GENERIC MESSAGE / CONFIRM MODAL
+         ========================================== -->
+    <div id="msgModal" class="hidden fixed inset-0 z-[75] bg-black/80 backdrop-blur-sm flex items-center justify-center safe-pad">
+        <div class="pop-in w-full max-w-sm bg-emerald-950 border-2 border-amber-400 rounded-3xl p-5 text-center shadow-2xl">
+            <div id="msgIcon" class="text-5xl mb-2"></div>
+            <h3 id="msgTitle" class="text-xl font-serif-asian font-extrabold text-amber-300"></h3>
+            <p id="msgText" class="text-sm text-emerald-100/90 mt-2 leading-relaxed"></p>
+            <div id="msgButtons" class="flex flex-col gap-2 mt-4"></div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         TITLE / SAVE SLOT SCREEN
+         ========================================== -->
+    <div id="titleScreen" class="fixed inset-0 z-[70] flex flex-col items-center justify-center safe-pad overflow-y-auto bamboo-bg" style="background-color:#05231a; background-image: radial-gradient(circle at 50% 30%, #155e45 0%, #07291e 60%, #031710 100%);">
+        <div id="titleTiles" class="flex items-end justify-center gap-3 mb-4"></div>
+        <h1 class="font-serif-asian font-extrabold text-4xl text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-yellow-400 to-amber-200 text-center leading-tight">Jade Sanctuary</h1>
+        <div class="text-amber-300/90 tracking-[0.45em] text-xs font-bold mt-1">MAHJONG</div>
+        <div id="slotList" class="w-full max-w-sm mt-6 space-y-3"></div>
+        <div class="mt-4 text-[11px] text-emerald-300/70 text-center">Tap a save slot to play • progress saves automatically</div>
+    </div>
+
+    <!-- ==========================================
+         TUTORIAL COACH MARKS
+         ========================================== -->
+    <div id="coachLayer" class="hidden">
+        <div id="coachSpot"></div>
+        <div id="coachFinger">👆</div>
+        <div id="coachBubble">
+            <div id="coachTitle" class="font-serif-asian font-extrabold text-amber-300 text-base leading-tight"></div>
+            <div id="coachText" class="text-sm text-white mt-1 leading-snug"></div>
+            <div class="flex items-center justify-between mt-2.5 gap-2">
+                <button id="coachSkip" onclick="skipTraining()" class="text-[11px] text-emerald-300/80 underline font-bold">Skip training</button>
+                <button id="coachNextBtn" onclick="coachNext()" class="ml-auto px-4 py-2 rounded-xl bg-amber-400 text-emerald-950 font-extrabold text-sm active:scale-95 transition">Got it ▶</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    /* ============================================================================
+       1. SYNTHESIZED WEB AUDIO SOUND ENGINE (SFX + ZEN MUSIC LOOP, NO AUDIO FILES)
+       ============================================================================ */
+    const SoundFX = {
+        ctx: null,
+        master: null,
+        sfx: null,
+        musicBus: null,
+        noiseBuf: null,
+        musicTimer: null,
+        nextNoteTime: 0,
+        musicStep: 0,
+        melIdx: 3,
+
+        init() {
+            if (!this.ctx) {
+                const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                if (!AudioCtx) return;
+                this.ctx = new AudioCtx();
+                this.master = this.ctx.createGain();
+                this.master.connect(this.ctx.destination);
+                this.sfx = this.ctx.createGain();
+                this.sfx.connect(this.master);
+                this.musicBus = this.ctx.createGain();
+                this.musicBus.gain.value = 0;
+                this.musicBus.connect(this.master);
+                const len = this.ctx.sampleRate;
+                this.noiseBuf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
+                const data = this.noiseBuf.getChannelData(0);
+                for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+                this.applyVolumes();
+            }
+            if (this.ctx.state === 'suspended') this.ctx.resume();
+        },
+        applyVolumes() {
+            if (!this.ctx) return;
+            const now = this.ctx.currentTime;
+            this.master.gain.setTargetAtTime(settings.volume, now, 0.05);
+            this.sfx.gain.setTargetAtTime(settings.sound ? 1 : 0, now, 0.05);
+            this.musicBus.gain.setTargetAtTime(settings.music ? 0.35 : 0, now, 0.4);
+        },
+        ready() {
+            if (!settings.sound) return false;
+            this.init();
+            return !!this.ctx;
+        },
+        tone(freq, dur, { type = 'sine', vol = 0.2, when = 0, slide = null, attack = 0.005, dest = null } = {}) {
+            const t = this.ctx.currentTime + Math.max(0, when);
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, t);
+            if (slide) osc.frequency.exponentialRampToValueAtTime(slide, t + dur);
+            gain.gain.setValueAtTime(0.0001, t);
+            gain.gain.exponentialRampToValueAtTime(vol, t + attack);
+            gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+            osc.connect(gain);
+            gain.connect(dest || this.sfx);
+            osc.start(t);
+            osc.stop(t + dur + 0.02);
+        },
+        noise(dur, { vol = 0.2, when = 0, type = 'bandpass', freq = 1000, freqTo = null, q = 1 } = {}) {
+            const t = this.ctx.currentTime + when;
+            const src = this.ctx.createBufferSource();
+            src.buffer = this.noiseBuf;
+            src.loop = true;
+            const filter = this.ctx.createBiquadFilter();
+            filter.type = type;
+            filter.frequency.setValueAtTime(freq, t);
+            if (freqTo) filter.frequency.exponentialRampToValueAtTime(freqTo, t + dur);
+            filter.Q.value = q;
+            const gain = this.ctx.createGain();
+            gain.gain.setValueAtTime(0.0001, t);
+            gain.gain.exponentialRampToValueAtTime(vol, t + 0.02);
+            gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+            src.connect(filter);
+            filter.connect(gain);
+            gain.connect(this.sfx);
+            src.start(t);
+            src.stop(t + dur + 0.05);
+        },
+
+        // --- Tile & board sounds ---
+        select() {
+            if (!this.ready()) return;
+            this.tone(440, 0.07, { type: 'triangle', vol: 0.26, slide: 170 });
+            this.noise(0.03, { vol: 0.07, freq: 3200, q: 2 });
+        },
+        deselect() {
+            if (!this.ready()) return;
+            this.tone(300, 0.06, { type: 'triangle', vol: 0.16, slide: 120 });
+        },
+        match(combo = 1) {
+            if (!this.ready()) return;
+            // Pentatonic chimes that climb with the combo
+            const penta = [523.25, 587.33, 659.25, 783.99, 880.00, 1046.50, 1174.66, 1318.51, 1567.98, 1760.00];
+            const i = Math.min(combo - 1, penta.length - 3);
+            this.tone(penta[i], 0.38, { vol: 0.2 });
+            this.tone(penta[i + 1], 0.4, { vol: 0.18, when: 0.07 });
+            if (combo >= 3) this.tone(penta[i + 2] * 2, 0.3, { type: 'triangle', vol: 0.07, when: 0.13 });
+            this.noise(0.05, { vol: 0.05, freq: 5000, q: 3 });
+        },
+        golden() {
+            if (!this.ready()) return;
+            [1046.5, 1318.51, 1567.98, 2093.0, 2637.0].forEach((f, i) => this.tone(f, 0.55, { type: 'triangle', vol: 0.11, when: i * 0.055 }));
+            this.noise(0.6, { vol: 0.05, type: 'highpass', freq: 7000 });
+        },
+        error() {
+            if (!this.ready()) return;
+            this.tone(160, 0.16, { type: 'sawtooth', vol: 0.11, slide: 110 });
+        },
+        mystery() {
+            if (!this.ready()) return;
+            this.tone(600, 0.35, { vol: 0.1, slide: 1800 });
+            this.tone(1200, 0.3, { type: 'triangle', vol: 0.06, when: 0.1, slide: 2400 });
+        },
+        gong() {
+            if (!this.ready()) return;
+            [[110, 0.2, 2.2], [220, 0.09, 1.8], [333, 0.06, 1.4], [572, 0.04, 1.0]].forEach(([f, v, d]) => this.tone(f, d, { vol: v, attack: 0.01 }));
+        },
+
+        // --- Power-ups ---
+        powerup() {
+            if (!this.ready()) return;
+            [440, 554.37, 659.25, 880].forEach((f, i) => this.tone(f, 0.3, { vol: 0.16, when: i * 0.05 }));
+        },
+        hint() {
+            if (!this.ready()) return;
+            this.tone(880, 0.25, { vol: 0.16 });
+            this.tone(1318.5, 0.4, { vol: 0.16, when: 0.12 });
+        },
+        shuffle() {
+            if (!this.ready()) return;
+            this.noise(0.65, { vol: 0.28, freq: 350, freqTo: 4500, q: 0.8 });
+            this.tone(220, 0.55, { type: 'triangle', vol: 0.06, slide: 700 });
+        },
+        undo() {
+            if (!this.ready()) return;
+            this.tone(950, 0.35, { type: 'triangle', vol: 0.15, slide: 300 });
+            this.noise(0.3, { vol: 0.08, freq: 3000, freqTo: 500 });
+        },
+        torch() {
+            if (!this.ready()) return;
+            this.noise(0.95, { type: 'lowpass', freq: 3200, freqTo: 180, vol: 0.4, q: 0.5 });
+            this.tone(95, 0.85, { type: 'sawtooth', vol: 0.12, slide: 45 });
+        },
+        eagle() {
+            if (!this.ready()) return;
+            this.tone(2300, 0.38, { vol: 0.12, slide: 1300 });
+            this.tone(2600, 0.32, { vol: 0.1, when: 0.26, slide: 1500 });
+        },
+
+        // --- UI / rewards ---
+        ui() {
+            if (!this.ready()) return;
+            this.tone(700, 0.05, { type: 'triangle', vol: 0.1 });
+        },
+        tick() {
+            if (!this.ready()) return;
+            this.tone(1500, 0.03, { type: 'square', vol: 0.045 });
+        },
+        coach() {
+            if (!this.ready()) return;
+            this.tone(1046.5, 0.15, { vol: 0.09 });
+            this.tone(1568, 0.25, { vol: 0.09, when: 0.08 });
+        },
+        star(i) {
+            if (!this.ready()) return;
+            this.tone(880 * (1 + i * 0.26), 0.3, { type: 'triangle', vol: 0.15 });
+            this.tone(1760 * (1 + i * 0.26), 0.2, { vol: 0.05, when: 0.03 });
+        },
+        comboTier(tier) {
+            if (!this.ready()) return;
+            const root = 392 * Math.pow(1.122, tier);
+            [1, 1.25, 1.5, 2].forEach((m, i) => this.tone(root * m, 0.45, { type: 'triangle', vol: 0.08, when: i * 0.03 }));
+        },
+        prize() {
+            if (!this.ready()) return;
+            [523.25, 659.25, 783.99, 1046.5, 1318.5].forEach((f, i) => this.tone(f, 0.4, { type: 'triangle', vol: 0.14, when: i * 0.07 }));
+            this.noise(0.5, { vol: 0.05, type: 'highpass', freq: 6000, when: 0.25 });
+        },
+        fanfare() {
+            if (!this.ready()) return;
+            [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => this.tone(f, 0.32, { type: 'triangle', vol: 0.16, when: i * 0.1 }));
+            [523.25, 659.25, 783.99, 1046.5].forEach(f => this.tone(f, 1.2, { vol: 0.08, when: 0.42 }));
+        },
+
+        // --- Zen music: soft pentatonic plucks over a slow drone ---
+        startMusic() {
+            if (!settings.music) return;
+            this.init();
+            if (!this.ctx || this.musicTimer) return;
+            this.nextNoteTime = this.ctx.currentTime + 0.1;
+            this.musicTimer = setInterval(() => this.scheduleMusic(), 120);
+            this.applyVolumes();
+        },
+        stopMusic() {
+            clearInterval(this.musicTimer);
+            this.musicTimer = null;
+            this.applyVolumes();
+        },
+        scheduleMusic() {
+            const ctx = this.ctx;
+            const scale = [293.66, 329.63, 392.0, 440.0, 493.88, 587.33, 659.25, 783.99];
+            if (this.nextNoteTime < ctx.currentTime) this.nextNoteTime = ctx.currentTime + 0.05;
+            while (this.nextNoteTime < ctx.currentTime + 0.5) {
+                const when = this.nextNoteTime - ctx.currentTime;
+                const step = this.musicStep;
+                if (step % 16 === 0) {
+                    const bass = [73.42, 98.0, 110.0, 82.41][(step / 16) % 4];
+                    this.tone(bass, 4.6, { vol: 0.16, when, attack: 0.3, dest: this.musicBus });
+                    this.tone(bass * 1.5, 4.6, { vol: 0.05, when, attack: 0.5, dest: this.musicBus });
+                }
+                if (Math.random() < (step % 2 === 0 ? 0.55 : 0.22)) {
+                    this.melIdx = Math.max(0, Math.min(scale.length - 1, this.melIdx + Math.floor(Math.random() * 5) - 2));
+                    this.tone(scale[this.melIdx], 0.9, { type: 'triangle', vol: 0.07, when, attack: 0.01, dest: this.musicBus });
+                }
+                this.nextNoteTime += 0.3;
+                this.musicStep++;
+            }
+        }
+    };
+
+    function buzz(pattern) {
+        if (!settings.haptics || !navigator.vibrate) return;
+        try { navigator.vibrate(pattern); } catch (e) { /* unsupported (iOS) */ }
+    }
+
+    /* ============================================================================
+       1b. PARTICLE FX (match bursts, sparkles, confetti) ON ONE CANVAS
+       ============================================================================ */
+    const FX = {
+        canvas: null,
+        g: null,
+        parts: [],
+        running: false,
+        dpr: 1,
+        init() {
+            this.canvas = document.getElementById('fxCanvas');
+            this.g = this.canvas.getContext('2d');
+            this.resize();
+        },
+        resize() {
+            if (!this.canvas) return;
+            this.dpr = Math.min(2, window.devicePixelRatio || 1);
+            this.canvas.width = Math.round(window.innerWidth * this.dpr);
+            this.canvas.height = Math.round(window.innerHeight * this.dpr);
+        },
+        burst(x, y, colors, n = 16, opts = {}) {
+            for (let i = 0; i < n; i++) {
+                const a = Math.random() * Math.PI * 2;
+                const sp = (opts.speed || 4) * (0.4 + Math.random());
+                this.parts.push({
+                    x, y,
+                    vx: Math.cos(a) * sp,
+                    vy: Math.sin(a) * sp - (opts.lift ?? 1.5),
+                    g: opts.gravity ?? 0.15,
+                    life: (opts.life || 32) + Math.random() * 22,
+                    age: 0,
+                    size: (opts.size || 4) * (0.6 + Math.random() * 0.8),
+                    color: colors[i % colors.length],
+                    shape: opts.shape || (i % 3 === 0 ? 'star' : 'circle'),
+                    rot: Math.random() * 6,
+                    vr: (Math.random() - 0.5) * 0.4
+                });
+            }
+            this.start();
+        },
+        confetti(n = 140) {
+            const cols = ['#fbbf24', '#34d399', '#f472b6', '#60a5fa', '#f87171', '#fde047', '#a78bfa'];
+            for (let i = 0; i < n; i++) {
+                this.parts.push({
+                    x: Math.random() * window.innerWidth,
+                    y: -20 - Math.random() * window.innerHeight * 0.4,
+                    vx: (Math.random() - 0.5) * 2.5,
+                    vy: 2 + Math.random() * 3,
+                    g: 0.05,
+                    life: 150 + Math.random() * 90,
+                    age: 0,
+                    size: 6 + Math.random() * 6,
+                    color: cols[i % cols.length],
+                    shape: 'rect',
+                    rot: Math.random() * 6,
+                    vr: (Math.random() - 0.5) * 0.3
+                });
+            }
+            this.start();
+        },
+        start() {
+            if (this.running || !this.g) return;
+            this.running = true;
+            requestAnimationFrame(() => this.tick());
+        },
+        tick() {
+            const g = this.g;
+            g.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+            g.clearRect(0, 0, window.innerWidth, window.innerHeight);
+            this.parts = this.parts.filter(p => p.age < p.life);
+            for (const p of this.parts) {
+                p.age++;
+                p.vy += p.g;
+                p.vx *= 0.985;
+                p.x += p.vx;
+                p.y += p.vy;
+                p.rot += p.vr;
+                const alpha = 1 - p.age / p.life;
+                g.globalAlpha = Math.max(0, Math.min(1, alpha * 1.4));
+                g.fillStyle = p.color;
+                if (p.shape === 'rect') {
+                    g.save();
+                    g.translate(p.x, p.y);
+                    g.rotate(p.rot);
+                    g.fillRect(-p.size / 2, -p.size / 4, p.size, p.size / 2);
+                    g.restore();
+                } else if (p.shape === 'star') {
+                    const s = p.size * 1.4;
+                    g.save();
+                    g.translate(p.x, p.y);
+                    g.rotate(p.rot);
+                    g.beginPath();
+                    g.moveTo(0, -s); g.lineTo(s * 0.25, -s * 0.25); g.lineTo(s, 0); g.lineTo(s * 0.25, s * 0.25);
+                    g.lineTo(0, s); g.lineTo(-s * 0.25, s * 0.25); g.lineTo(-s, 0); g.lineTo(-s * 0.25, -s * 0.25);
+                    g.closePath();
+                    g.fill();
+                    g.restore();
+                } else {
+                    g.beginPath();
+                    g.arc(p.x, p.y, p.size * (0.5 + alpha * 0.5), 0, Math.PI * 2);
+                    g.fill();
+                }
+            }
+            g.globalAlpha = 1;
+            if (this.parts.length) {
+                requestAnimationFrame(() => this.tick());
+            } else {
+                this.running = false;
+                g.clearRect(0, 0, window.innerWidth, window.innerHeight);
+            }
+        }
+    };
+
+    /* ============================================================================
+       2. CUSTOM ASIAN ARTWORK SVG GENERATOR (36 DISTINCT HIGH-CONTRAST TILES)
+       ============================================================================ */
+    const TILE_CATALOG = [
+        // --- SUIT 1: BAMBOO STALKS (b1 - b9) ---
+        { id: 'b1', suit: 'bamboo', badge: '1竹', color: '#15803d', name: '1 Bamboo' },
+        { id: 'b2', suit: 'bamboo', badge: '2竹', color: '#15803d', name: '2 Bamboo' },
+        { id: 'b3', suit: 'bamboo', badge: '3竹', color: '#15803d', name: '3 Bamboo' },
+        { id: 'b4', suit: 'bamboo', badge: '4竹', color: '#15803d', name: '4 Bamboo' },
+        { id: 'b5', suit: 'bamboo', badge: '5竹', color: '#15803d', name: '5 Bamboo' },
+        { id: 'b6', suit: 'bamboo', badge: '6竹', color: '#15803d', name: '6 Bamboo' },
+        { id: 'b7', suit: 'bamboo', badge: '7竹', color: '#15803d', name: '7 Bamboo' },
+        { id: 'b8', suit: 'bamboo', badge: '8竹', color: '#15803d', name: '8 Bamboo' },
+        { id: 'b9', suit: 'bamboo', badge: '9竹', color: '#15803d', name: '9 Bamboo' },
+
+        // --- SUIT 2: PANDA & WILDLIFE (w1 - w9) ---
+        { id: 'w1', suit: 'wildlife', badge: '熊', color: '#1e293b', name: 'Giant Panda' },
+        { id: 'w2', suit: 'wildlife', badge: '狐', color: '#c2410c', name: 'Red Panda' },
+        { id: 'w3', suit: 'wildlife', badge: '鯉', color: '#ea580c', name: 'Golden Koi' },
+        { id: 'w4', suit: 'wildlife', badge: '鶴', color: '#0284c7', name: 'Sacred Crane' },
+        { id: 'w5', suit: 'wildlife', badge: '虎', color: '#d97706', name: 'Bengal Tiger' },
+        { id: 'w6', suit: 'wildlife', badge: '龍', color: '#059669', name: 'Jade Dragon' },
+        { id: 'w7', suit: 'wildlife', badge: '蓮', color: '#db2777', name: 'Lotus Bloom' },
+        { id: 'w8', suit: 'wildlife', badge: '盆', color: '#166534', name: 'Bonsai Pine' },
+        { id: 'w9', suit: 'wildlife', badge: '櫻', color: '#e11d48', name: 'Sakura Blossom' },
+
+        // --- SUIT 3: ASIAN ARCHITECTURE & LANDMARKS (a1 - a9) ---
+        { id: 'a1', suit: 'arch', badge: '塔', color: '#b91c1c', name: 'Imperial Pagoda' },
+        { id: 'a2', suit: 'arch', badge: '鳥', color: '#dc2626', name: 'Torii Gate' },
+        { id: 'a3', suit: 'arch', badge: '城', color: '#57534e', name: 'Great Wall' },
+        { id: 'a4', suit: 'arch', badge: '寺', color: '#b45309', name: 'Mountain Temple' },
+        { id: 'a5', suit: 'arch', badge: '燈', color: '#475569', name: 'Stone Lantern' },
+        { id: 'a6', suit: 'arch', badge: '橋', color: '#0369a1', name: 'Moon Bridge' },
+        { id: 'a7', suit: 'arch', badge: '亭', color: '#991b1b', name: 'Jade Pavilion' },
+        { id: 'a8', suit: 'arch', badge: '宮', color: '#ca8a04', name: 'Forbidden Palace' },
+        { id: 'a9', suit: 'arch', badge: '道', color: '#334155', name: 'Yin-Yang Sanctuary' },
+
+        // --- SUIT 4: CULTURAL TREASURES (t1 - t9) ---
+        { id: 't1', suit: 'treasure', badge: '灯', color: '#dc2626', name: 'Festival Lantern' },
+        { id: 't2', suit: 'treasure', badge: '扇', color: '#9333ea', name: 'Silk Fan' },
+        { id: 't3', suit: 'treasure', badge: '茶', color: '#0f766e', name: 'Jade Teapot' },
+        { id: 't4', suit: 'treasure', badge: '財', color: '#ca8a04', name: 'Lucky Coin' },
+        { id: 't5', suit: 'treasure', badge: '玉', color: '#10b981', name: 'Jade Pendant' },
+        { id: 't6', suit: 'treasure', badge: '鈴', color: '#0284c7', name: 'Wind Chime' },
+        { id: 't7', suit: 'treasure', badge: '折', color: '#ec4899', name: 'Origami Crane' },
+        { id: 't8', suit: 'treasure', badge: '卷', color: '#a16207', name: 'Wisdom Scroll' },
+        { id: 't9', suit: 'treasure', badge: '包', color: '#d97706', name: 'Golden Bao' }
+    ];
+
+    function renderBambooStalkSVG(x, y, h, color = '#15803d') {
+        const w = 7;
+        const r = 3;
+        return `
+            <g transform="translate(${x},${y})">
+                <rect x="${-w/2}" y="0" width="${w}" height="${h/2 - 1}" rx="${r}" fill="${color}" />
+                <rect x="${-w/2}" y="${h/2 + 1}" width="${w}" height="${h/2 - 1}" rx="${r}" fill="${color}" />
+                <rect x="${-w/2 - 1.5}" y="${h/2 - 1.5}" width="${w + 3}" height="3" rx="1.5" fill="#86efac" stroke="${color}" stroke-width="0.8"/>
+                <path d="M0,${h*0.3} Q7,${h*0.18} 9,${h*0.25} Q5,${h*0.34} 0,${h*0.3}" fill="#22c55e"/>
+            </g>
+        `;
+    }
+
+    function getTileSVG(tileId) {
+        // Bamboo Suit 1-9
+        if (tileId.startsWith('b')) {
+            const count = parseInt(tileId.substring(1), 10);
+            let stalks = '';
+            const positions = {
+                1: [[32, 18, 42, '#15803d']],
+                2: [[32, 8, 28, '#15803d'], [32, 42, 28, '#047857']],
+                3: [[32, 8, 26, '#15803d'], [20, 40, 28, '#047857'], [44, 40, 28, '#047857']],
+                4: [[21, 10, 26, '#15803d'], [43, 10, 26, '#047857'], [21, 42, 26, '#047857'], [43, 42, 26, '#15803d']],
+                5: [[19, 10, 25, '#15803d'], [45, 10, 25, '#15803d'], [32, 26, 25, '#dc2626'], [19, 43, 25, '#047857'], [45, 43, 25, '#047857']],
+                6: [[18, 10, 26, '#15803d'], [32, 10, 26, '#15803d'], [46, 10, 26, '#15803d'], [18, 42, 26, '#047857'], [32, 42, 26, '#047857'], [46, 42, 26, '#047857']],
+                7: [[32, 6, 20, '#dc2626'], [18, 28, 20, '#15803d'], [32, 28, 20, '#15803d'], [46, 28, 20, '#15803d'], [18, 50, 20, '#047857'], [32, 50, 20, '#047857'], [46, 50, 20, '#047857']],
+                8: [[16, 10, 25, '#15803d'], [27, 10, 25, '#047857'], [37, 10, 25, '#047857'], [48, 10, 25, '#15803d'], [16, 42, 25, '#15803d'], [27, 42, 25, '#047857'], [37, 42, 25, '#047857'], [48, 42, 25, '#15803d']],
+                9: [[17, 7, 19, '#15803d'], [32, 7, 19, '#dc2626'], [47, 7, 19, '#15803d'], [17, 29, 19, '#15803d'], [32, 29, 19, '#dc2626'], [47, 29, 19, '#15803d'], [17, 51, 19, '#047857'], [32, 51, 19, '#dc2626'], [47, 51, 19, '#047857']]
+            };
+            (positions[count] || []).forEach(([x, y, h, col]) => {
+                stalks += renderBambooStalkSVG(x, y, h, col);
+            });
+            return `<svg viewBox="0 0 64 78" class="w-full h-full">${stalks}</svg>`;
+        }
+
+        // Custom vector art for Wildlife, Architecture, and Cultural Treasures
+        const artMap = {
+            // Giant Panda
+            w1: `
+                <circle cx="17" cy="24" r="8" fill="#1e293b"/>
+                <circle cx="47" cy="24" r="8" fill="#1e293b"/>
+                <circle cx="32" cy="41" r="20" fill="#ffffff" stroke="#1e293b" stroke-width="2.5"/>
+                <ellipse cx="24" cy="38" rx="6" ry="7.5" transform="rotate(-15 24 38)" fill="#1e293b"/>
+                <ellipse cx="40" cy="38" rx="6" ry="7.5" transform="rotate(15 40 38)" fill="#1e293b"/>
+                <circle cx="25" cy="37" r="2.2" fill="#ffffff"/>
+                <circle cx="39" cy="37" r="2.2" fill="#ffffff"/>
+                <ellipse cx="32" cy="46" rx="4" ry="2.8" fill="#1e293b"/>
+                <path d="M27,51 Q32,55 37,51" fill="none" stroke="#1e293b" stroke-width="2.2" stroke-linecap="round"/>
+                <path d="M48,54 L56,42" stroke="#16a34a" stroke-width="3.5" stroke-linecap="round"/>
+            `,
+            // Red Panda
+            w2: `
+                <polygon points="12,18 26,24 15,35" fill="#9a3412"/>
+                <polygon points="52,18 38,24 49,35" fill="#9a3412"/>
+                <circle cx="32" cy="42" r="19" fill="#ea580c" stroke="#7c2d12" stroke-width="2"/>
+                <path d="M16,42 Q24,33 32,42 Q40,33 48,42 Q44,56 32,56 Q20,56 16,42 Z" fill="#fff7ed"/>
+                <circle cx="25" cy="39" r="3" fill="#1c1917"/>
+                <circle cx="39" cy="39" r="3" fill="#1c1917"/>
+                <ellipse cx="32" cy="46" rx="3.5" ry="2.5" fill="#1c1917"/>
+            `,
+            // Golden Koi
+            w3: `
+                <path d="M18,54 C12,38 22,20 38,20 C48,20 50,32 42,44 C35,54 24,56 18,54 Z" fill="#f97316" stroke="#c2410c" stroke-width="2"/>
+                <circle cx="35" cy="29" r="5" fill="#fef3c7"/>
+                <circle cx="29" cy="39" r="4" fill="#dc2626"/>
+                <path d="M18,54 L8,64 L14,48 L6,45 L18,54 Z" fill="#fb923c"/>
+                <circle cx="41" cy="25" r="2" fill="#1e293b"/>
+                <path d="M14,26 Q22,16 32,20" fill="none" stroke="#38bdf8" stroke-width="2.5" stroke-linecap="round"/>
+            `,
+            // Sacred Crane
+            w4: `
+                <circle cx="32" cy="40" r="18" fill="#e0f2fe"/>
+                <path d="M22,52 Q18,36 32,34 Q46,36 42,52 Z" fill="#ffffff" stroke="#0284c7" stroke-width="2"/>
+                <path d="M32,35 Q36,20 30,16 Q25,16 26,22" fill="none" stroke="#1e293b" stroke-width="3.5" stroke-linecap="round"/>
+                <circle cx="29" cy="16" r="3" fill="#dc2626"/>
+                <polygon points="25,17 15,20 25,21" fill="#f59e0b"/>
+            `,
+            // Bengal Tiger
+            w5: `
+                <circle cx="17" cy="24" r="7" fill="#d97706"/>
+                <circle cx="47" cy="24" r="7" fill="#d97706"/>
+                <circle cx="32" cy="41" r="19" fill="#f59e0b" stroke="#78350f" stroke-width="2"/>
+                <path d="M22,26 L28,29 M42,26 L36,29 M15,38 L21,38 M49,38 L43,38 M32,22 L32,30" stroke="#1c1917" stroke-width="2.8" stroke-linecap="round"/>
+                <ellipse cx="32" cy="49" rx="11" ry="8" fill="#fef3c7"/>
+                <polygon points="28,45 36,45 32,50" fill="#f43f5e"/>
+                <circle cx="25" cy="37" r="2.8" fill="#1c1917"/>
+                <circle cx="39" cy="37" r="2.8" fill="#1c1917"/>
+            `,
+            // Jade Dragon
+            w6: `
+                <path d="M16,54 C12,38 22,22 36,24 C48,26 50,42 38,48 C28,53 26,40 34,38" fill="none" stroke="#059669" stroke-width="7" stroke-linecap="round"/>
+                <path d="M16,54 C12,38 22,22 36,24 C48,26 50,42 38,48" fill="none" stroke="#34d399" stroke-width="3" stroke-dasharray="3 3"/>
+                <circle cx="36" cy="24" r="7" fill="#059669"/>
+                <circle cx="38" cy="22" r="2" fill="#fef08a"/>
+                <path d="M32,18 L26,11 M38,18 L44,11" stroke="#f59e0b" stroke-width="2.5" stroke-linecap="round"/>
+            `,
+            // Lotus Bloom
+            w7: `
+                <ellipse cx="32" cy="54" rx="22" ry="6" fill="#10b981"/>
+                <path d="M32,20 C22,30 20,46 32,52 C44,46 42,30 32,20 Z" fill="#f472b6" stroke="#be185d" stroke-width="1.8"/>
+                <path d="M32,52 C16,48 12,34 20,26 C25,34 26,44 32,52 Z" fill="#ec4899" stroke="#be185d" stroke-width="1.8"/>
+                <path d="M32,52 C48,48 52,34 44,26 C39,34 38,44 32,52 Z" fill="#ec4899" stroke="#be185d" stroke-width="1.8"/>
+                <circle cx="32" cy="42" r="4" fill="#fde047"/>
+            `,
+            // Bonsai Pine
+            w8: `
+                <polygon points="16,50 48,50 43,60 21,60" fill="#9a3412" stroke="#431407" stroke-width="1.8"/>
+                <path d="M30,50 Q26,38 35,30" fill="none" stroke="#78350f" stroke-width="5" stroke-linecap="round"/>
+                <ellipse cx="24" cy="34" rx="11" ry="7" fill="#15803d"/>
+                <ellipse cx="40" cy="26" rx="12" ry="8" fill="#16a34a"/>
+                <ellipse cx="32" cy="20" rx="10" ry="6" fill="#22c55e"/>
+            `,
+            // Sakura Blossom
+            w9: `
+                <g transform="translate(32,40)">
+                    <circle cx="0" cy="-12" r="9" fill="#fda4af" stroke="#e11d48" stroke-width="1.5"/>
+                    <circle cx="11" cy="-4" r="9" fill="#fda4af" stroke="#e11d48" stroke-width="1.5"/>
+                    <circle cx="7" cy="10" r="9" fill="#fda4af" stroke="#e11d48" stroke-width="1.5"/>
+                    <circle cx="-7" cy="10" r="9" fill="#fda4af" stroke="#e11d48" stroke-width="1.5"/>
+                    <circle cx="-11" cy="-4" r="9" fill="#fda4af" stroke="#e11d48" stroke-width="1.5"/>
+                    <circle cx="0" cy="0" r="5" fill="#fef08a"/>
+                </g>
+            `,
+            // Imperial Pagoda
+            a1: `
+                <line x1="32" y1="12" x2="32" y2="20" stroke="#ca8a04" stroke-width="3" stroke-linecap="round"/>
+                <polygon points="16,28 32,18 48,28" fill="#dc2626" stroke="#7f1d1d" stroke-width="1.5"/>
+                <rect x="23" y="28" width="18" height="8" fill="#fef3c7" stroke="#7f1d1d" stroke-width="1.5"/>
+                <polygon points="12,42 32,32 52,42" fill="#dc2626" stroke="#7f1d1d" stroke-width="1.5"/>
+                <rect x="20" y="42" width="24" height="10" fill="#fef3c7" stroke="#7f1d1d" stroke-width="1.5"/>
+                <polygon points="10,56 32,47 54,56" fill="#b91c1c" stroke="#7f1d1d" stroke-width="1.5"/>
+            `,
+            // Torii Gate
+            a2: `
+                <path d="M10,23 Q32,17 54,23 L51,28 Q32,23 13,28 Z" fill="#dc2626" stroke="#7f1d1d" stroke-width="1.5"/>
+                <rect x="14" y="32" width="36" height="4.5" rx="1" fill="#ef4444"/>
+                <rect x="19" y="26" width="5" height="34" fill="#dc2626"/>
+                <rect x="40" y="26" width="5" height="34" fill="#dc2626"/>
+                <rect x="16" y="56" width="11" height="5" fill="#1e293b"/>
+                <rect x="37" y="56" width="11" height="5" fill="#1e293b"/>
+            `,
+            // Great Wall
+            a3: `
+                <rect x="12" y="34" width="40" height="24" rx="2" fill="#78716c" stroke="#44403c" stroke-width="2"/>
+                <rect x="12" y="26" width="8" height="8" fill="#78716c" stroke="#44403c" stroke-width="1.5"/>
+                <rect x="28" y="26" width="8" height="8" fill="#78716c" stroke="#44403c" stroke-width="1.5"/>
+                <rect x="44" y="26" width="8" height="8" fill="#78716c" stroke="#44403c" stroke-width="1.5"/>
+                <path d="M25,58 L25,45 A7,7 0 0,1 39,45 L39,58 Z" fill="#292524"/>
+            `,
+            // Mountain Temple
+            a4: `
+                <path d="M8,36 Q32,16 56,36 Z" fill="#d97706" stroke="#78350f" stroke-width="2"/>
+                <rect x="16" y="36" width="32" height="20" fill="#fef3c7" stroke="#78350f" stroke-width="2"/>
+                <rect x="27" y="42" width="10" height="14" rx="2" fill="#991b1b"/>
+                <circle cx="32" cy="29" r="3.5" fill="#fef08a"/>
+            `,
+            // Stone Lantern
+            a5: `
+                <polygon points="14,30 32,18 50,30" fill="#64748b" stroke="#334155" stroke-width="2"/>
+                <rect x="22" y="30" width="20" height="14" fill="#fef08a" stroke="#334155" stroke-width="2"/>
+                <circle cx="32" cy="37" r="4" fill="#f97316"/>
+                <rect x="18" y="44" width="28" height="5" fill="#94a3b8" stroke="#334155" stroke-width="1.5"/>
+                <rect x="26" y="49" width="12" height="10" fill="#64748b" stroke="#334155" stroke-width="1.5"/>
+            `,
+            // Moon Bridge
+            a6: `
+                <path d="M10,50 A22,22 0 0,1 54,50 L44,50 A12,12 0 0,0 20,50 Z" fill="#0284c7" stroke="#075985" stroke-width="2"/>
+                <path d="M10,54 Q22,50 32,54 Q42,58 54,54" fill="none" stroke="#38bdf8" stroke-width="3" stroke-linecap="round"/>
+                <circle cx="32" cy="24" r="5" fill="#fde047"/>
+            `,
+            // Jade Pavilion
+            a7: `
+                <polygon points="10,32 32,16 54,32" fill="#059669" stroke="#064e3b" stroke-width="2"/>
+                <line x1="18" y1="32" x2="18" y2="54" stroke="#b91c1c" stroke-width="4"/>
+                <line x1="46" y1="32" x2="46" y2="54" stroke="#b91c1c" stroke-width="4"/>
+                <rect x="12" y="54" width="40" height="5" rx="2" fill="#d97706"/>
+            `,
+            // Forbidden Palace
+            a8: `
+                <polygon points="10,30 22,20 42,20 54,30" fill="#eab308" stroke="#854d0e" stroke-width="2"/>
+                <rect x="14" y="30" width="36" height="24" fill="#dc2626" stroke="#7f1d1d" stroke-width="2"/>
+                <path d="M26,54 L26,42 A6,6 0 0,1 38,42 L38,54 Z" fill="#fef08a"/>
+            `,
+            // Yin-Yang Sanctuary
+            a9: `
+                <circle cx="32" cy="40" r="19" fill="#1e293b" stroke="#cbd5e1" stroke-width="2"/>
+                <path d="M32,21 A19,19 0 0,1 32,59 A9.5,9.5 0 0,1 32,40 A9.5,9.5 0 0,0 32,21 Z" fill="#f8fafc"/>
+                <circle cx="32" cy="30.5" r="3.2" fill="#1e293b"/>
+                <circle cx="32" cy="49.5" r="3.2" fill="#f8fafc"/>
+            `,
+            // Festival Lantern
+            t1: `
+                <rect x="24" y="17" width="16" height="4" fill="#ca8a04"/>
+                <ellipse cx="32" cy="37" rx="18" ry="16" fill="#ef4444" stroke="#991b1b" stroke-width="2"/>
+                <ellipse cx="32" cy="37" rx="9" ry="16" fill="none" stroke="#fca5a5" stroke-width="1.5"/>
+                <rect x="24" y="51" width="16" height="4" fill="#ca8a04"/>
+                <line x1="32" y1="55" x2="32" y2="63" stroke="#eab308" stroke-width="3"/>
+            `,
+            // Silk Fan
+            t2: `
+                <path d="M12,34 A24,24 0 0,1 52,34 L32,56 Z" fill="#a855f7" stroke="#581c87" stroke-width="2"/>
+                <line x1="32" y1="56" x2="20" y2="26" stroke="#fde047" stroke-width="1.5"/>
+                <line x1="32" y1="56" x2="32" y2="22" stroke="#fde047" stroke-width="1.5"/>
+                <line x1="32" y1="56" x2="44" y2="26" stroke="#fde047" stroke-width="1.5"/>
+            `,
+            // Jade Teapot
+            t3: `
+                <ellipse cx="32" cy="43" rx="15" ry="12" fill="#14b8a6" stroke="#115e59" stroke-width="2"/>
+                <path d="M17,39 Q8,39 14,49" fill="none" stroke="#115e59" stroke-width="3"/>
+                <path d="M47,42 Q54,34 56,36" fill="none" stroke="#115e59" stroke-width="3.5" stroke-linecap="round"/>
+                <circle cx="32" cy="29" r="3.5" fill="#fbbf24"/>
+            `,
+            // Lucky Coin
+            t4: `
+                <circle cx="32" cy="40" r="19" fill="#facc15" stroke="#a16207" stroke-width="2.5"/>
+                <circle cx="32" cy="40" r="15" fill="none" stroke="#ca8a04" stroke-width="1.5" stroke-dasharray="3 2"/>
+                <rect x="25" y="33" width="14" height="14" rx="2" fill="#fef9c3" stroke="#a16207" stroke-width="2"/>
+            `,
+            // Jade Pendant
+            t5: `
+                <path d="M32,15 L32,24" stroke="#ef4444" stroke-width="2.5"/>
+                <circle cx="32" cy="41" r="17" fill="#34d399" stroke="#047857" stroke-width="2.5"/>
+                <circle cx="32" cy="41" r="6" fill="#ffffff" stroke="#047857" stroke-width="2"/>
+            `,
+            // Wind Chime
+            t6: `
+                <path d="M18,32 A14,14 0 0,1 46,32 Z" fill="#38bdf8" stroke="#0369a1" stroke-width="2"/>
+                <line x1="24" y1="32" x2="24" y2="50" stroke="#94a3b8" stroke-width="2.5"/>
+                <line x1="40" y1="32" x2="40" y2="50" stroke="#94a3b8" stroke-width="2.5"/>
+                <rect x="28" y="42" width="8" height="18" rx="3" fill="#f43f5e"/>
+            `,
+            // Origami Crane
+            t7: `
+                <polygon points="32,20 12,38 30,44" fill="#f472b6" stroke="#9d174d" stroke-width="1.5"/>
+                <polygon points="32,20 52,38 34,44" fill="#ec4899" stroke="#9d174d" stroke-width="1.5"/>
+                <polygon points="22,42 32,56 42,42" fill="#db2777" stroke="#9d174d" stroke-width="1.5"/>
+            `,
+            // Wisdom Scroll
+            t8: `
+                <rect x="14" y="21" width="36" height="5" rx="2" fill="#92400e"/>
+                <rect x="18" y="26" width="28" height="28" fill="#fef3c7" stroke="#b45309" stroke-width="1.8"/>
+                <rect x="14" y="54" width="36" height="5" rx="2" fill="#92400e"/>
+                <path d="M26,34 L38,34 M26,40 L38,40 M26,46 L34,46" stroke="#b45309" stroke-width="2.2" stroke-linecap="round"/>
+            `,
+            // Golden Bao
+            t9: `
+                <path d="M14,48 C14,30 26,24 32,22 C38,24 50,30 50,48 Z" fill="#fffbeb" stroke="#d97706" stroke-width="2.2"/>
+                <path d="M32,22 L26,32 M32,22 L32,33 M32,22 L38,32" stroke="#f59e0b" stroke-width="2" stroke-linecap="round"/>
+                <ellipse cx="32" cy="48" rx="18" ry="4" fill="#fde68a" stroke="#d97706" stroke-width="2"/>
+            `
+        };
+
+        return `<svg viewBox="0 0 64 76" class="w-full h-full">${artMap[tileId] || ''}</svg>`;
+    }
+
+    const CATALOG_BY_ID = Object.fromEntries(TILE_CATALOG.map(c => [c.id, c]));
+    const $ = id => document.getElementById(id);
+
+    /* ============================================================================
+       3. SEEDED RANDOMNESS — level N always builds the same board, so levels are
+          infinite without storing anything (level 10 or 10,000,000 costs 0 bytes)
+       ============================================================================ */
+    function mulberry32(a) {
+        return function () {
+            a |= 0;
+            a = a + 0x6D2B79F5 | 0;
+            let t = Math.imul(a ^ a >>> 15, 1 | a);
+            t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+            return ((t ^ t >>> 14) >>> 0) / 4294967296;
+        };
+    }
+    function hashSeed(n, salt = 0) {
+        let h = (2166136261 ^ salt) >>> 0;
+        const s = String(n);
+        for (let i = 0; i < s.length; i++) {
+            h ^= s.charCodeAt(i);
+            h = Math.imul(h, 16777619);
+        }
+        h ^= h >>> 13;
+        h = Math.imul(h, 0x5bd1e995);
+        h ^= h >>> 15;
+        return h >>> 0;
+    }
+    function rngShuffle(arr, rng) {
+        for (let i = arr.length - 1; i > 0; i--) {
+            const j = Math.floor(rng() * (i + 1));
+            [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+        return arr;
+    }
+    const rngInt = (rng, a, b) => a + Math.floor(rng() * (b - a + 1));
+    const rngPick = (rng, arr) => arr[Math.floor(rng() * arr.length)];
+
+    /* ============================================================================
+       4. FORMATIONS: CLASSIC LAYOUTS, NAMED SHAPES & PROCEDURAL STACKS
+          Coordinates use (x, y, z) where 1 tile = 2 units wide and 2 units tall.
+          Boards stay within ~7 tiles wide x 8 tall so tiles stay finger-sized.
+       ============================================================================ */
+    const FORMATIONS = [
+        {
+            name: "Sacred Turtle",
+            build() {
+                const slots = [];
+                for (let x = 2; x <= 12; x += 2) for (let y = 0; y <= 6; y += 2) slots.push({ x, y, z: 0 });
+                slots.push({ x: 0, y: 3, z: 0 }, { x: 14, y: 3, z: 0 });
+                for (let x = 4; x <= 10; x += 2) for (let y = 1; y <= 5; y += 2) slots.push({ x, y, z: 1 });
+                for (let x = 5; x <= 9; x += 2) for (let y = 2; y <= 4; y += 2) slots.push({ x, y, z: 2 });
+                slots.push({ x: 6, y: 3, z: 3 }, { x: 8, y: 3, z: 3 });
+                return slots;
+            }
+        },
+        {
+            name: "Imperial Pagoda",
+            build() {
+                const slots = [];
+                for (let x = 2; x <= 12; x += 2) for (let y = 0; y <= 8; y += 2) slots.push({ x, y, z: 0 });
+                for (let x = 4; x <= 10; x += 2) for (let y = 2; y <= 6; y += 2) slots.push({ x, y, z: 1 });
+                for (let x = 4; x <= 10; x += 2) slots.push({ x, y: 4, z: 2 });
+                slots.push({ x: 6, y: 4, z: 3 }, { x: 8, y: 4, z: 3 });
+                return slots;
+            }
+        },
+        {
+            name: "Twin Jade Bridges",
+            build() {
+                const slots = [];
+                for (let x = 0; x <= 12; x += 2) {
+                    for (let y = 0; y <= 6; y += 2) {
+                        if (x === 6 && (y === 2 || y === 4)) continue;
+                        slots.push({ x, y, z: 0 });
+                    }
+                }
+                for (let x = 2; x <= 10; x += 2) slots.push({ x, y: 0, z: 1 }, { x, y: 6, z: 1 });
+                for (let x = 4; x <= 8; x += 2) slots.push({ x, y: 0, z: 2 }, { x, y: 6, z: 2 });
+                return slots;
+            }
+        },
+        {
+            name: "Lotus Sanctuary",
+            build() {
+                const slots = [];
+                const ring0 = [
+                    [4,0],[6,0],[8,0],
+                    [2,2],[4,2],[6,2],[8,2],[10,2],
+                    [0,4],[2,4],[4,4],[6,4],[8,4],[10,4],[12,4],
+                    [2,6],[4,6],[6,6],[8,6],[10,6],
+                    [4,8],[6,8],[8,8]
+                ];
+                ring0.forEach(([x, y]) => slots.push({ x, y, z: 0 }));
+                for (let x = 4; x <= 8; x += 2) for (let y = 2; y <= 6; y += 2) slots.push({ x, y, z: 1 });
+                slots.push({ x: 5, y: 3, z: 2 }, { x: 7, y: 3, z: 2 }, { x: 5, y: 5, z: 2 }, { x: 7, y: 5, z: 2 });
+                slots.push({ x: 6, y: 4, z: 3 });
+                return slots;
+            }
+        },
+        {
+            name: "Dragon Fortress",
+            build() {
+                const slots = [];
+                for (let x = 0; x <= 12; x += 2) for (let y = 0; y <= 6; y += 2) slots.push({ x, y, z: 0 });
+                [[0,0],[12,0],[0,6],[12,6],[4,2],[8,2],[4,4],[8,4],[6,2],[6,4]].forEach(([x, y]) => slots.push({ x, y, z: 1 }));
+                [[0,0],[12,0],[0,6],[12,6],[5,3],[7,3]].forEach(([x, y]) => slots.push({ x, y, z: 2 }));
+                return slots;
+            }
+        }
+    ];
+
+    // Named base shapes ('#' = tile). Upper storeys are stacked automatically.
+    const SHAPES = [
+        { name: 'Misty Mountain', rows: ['..###..', '.#####.', '#######', '#######', '#######', '.#####.'] },
+        { name: 'Sacred Crane',   rows: ['...#...', '..###..', '#.###.#', '#######', '.#####.', '..#.#..'] },
+        { name: 'Silk Fan',       rows: ['.#####.', '#######', '#######', '.#####.', '..###..', '...#...'] },
+        { name: 'Torii Gate',     rows: ['#######', '.#####.', '.##.##.', '.##.##.', '###.###', '###.###'] },
+        { name: 'Festival Lantern', rows: ['..###..', '.#####.', '#######', '#######', '#######', '.#####.', '..###..'] },
+        { name: 'Koi Pond',       rows: ['.##.##.', '#######', '#######', '.#####.', '#######', '.##.##.'] },
+        { name: 'Moon Gate',      rows: ['.#####.', '##...##', '##...##', '##...##', '.#####.'] },
+        { name: 'Great Wall',     rows: ['#.#.#.#', '#######', '#######', '#######'] },
+        { name: 'Pagoda Spire',   rows: ['...#...', '.#####.', '..###..', '#######', '.#####.', '#######', '#######'] },
+        { name: 'Jade Butterfly', rows: ['##...##', '###.###', '#######', '.#####.', '#######', '###.###', '##...##'] }
+    ];
+
+    const NAME_ADJ = ['Misty', 'Golden', 'Moonlit', 'Hidden', 'Celestial', 'Silent', 'Crimson', 'Jade', 'Emerald', 'Thunder', 'Lotus', 'Cherry', 'Phoenix', 'Tiger', 'Dragon', 'Azure', 'Starlit', 'Ancient', 'Whispering', 'Eternal'];
+    const NAME_NOUN = ['Terrace', 'Peaks', 'Garden', 'Shrine', 'Steps', 'Gate', 'Courtyard', 'Falls', 'Citadel', 'Pavilion', 'Grove', 'Harbor', 'Bridge', 'Valley', 'Altar', 'Palace', 'Monastery', 'Lagoon'];
+
+    function maskToSlots(rows) {
+        const slots = [];
+        rows.forEach((row, j) => {
+            for (let i = 0; i < row.length; i++) if (row[i] === '#') slots.push({ x: i * 2, y: j * 2, z: 0 });
+        });
+        return slots;
+    }
+
+    // Mirror-symmetric random base mask
+    function proceduralMask(rng, cols, rows, dense = false) {
+        const type = rngPick(rng, dense ? ['rect', 'rounded', 'blob', 'arch'] : ['rect', 'diamond', 'rounded', 'hourglass', 'blob', 'cross', 'arch', 'ring']);
+        const blob = Array.from({ length: rows }, () => Array.from({ length: Math.ceil(cols / 2) }, () => rng() < 0.78));
+        const cx = (cols - 1) / 2, cy = (rows - 1) / 2;
+        const out = [];
+        for (let j = 0; j < rows; j++) {
+            let s = '';
+            for (let i = 0; i < cols; i++) {
+                const mi = Math.min(i, cols - 1 - i);
+                const dx = Math.abs(i - cx) / (cx || 1);
+                const dy = Math.abs(j - cy) / (cy || 1);
+                let on = true;
+                switch (type) {
+                    case 'diamond': on = dx + dy <= 1.25; break;
+                    case 'rounded': on = !(dx > 0.8 && dy > 0.75); break;
+                    case 'hourglass': on = dx <= 0.4 + dy * 0.75; break;
+                    case 'cross': on = dx <= 0.45 || dy <= 0.45; break;
+                    case 'arch': on = !(dx <= 0.35 && j >= rows - 2); break;
+                    case 'ring': on = !(dx < 0.4 && dy < 0.4); break;
+                    case 'blob': on = blob[j][mi] || mi === Math.floor(cx); break;
+                }
+                s += on ? '#' : '.';
+            }
+            out.push(s);
+        }
+        return out;
+    }
+
+    // Builds upper storeys: either aligned on top of interior tiles, or offset by half a tile (pyramid style)
+    function stackLayers(base, rng, maxLayers) {
+        const all = base.map(s => ({ x: s.x, y: s.y, z: 0 }));
+        let prev = all.slice();
+        const offsetBias = rng();
+        for (let z = 1; z < maxLayers; z++) {
+            const has = new Set(prev.map(t => t.x + ',' + t.y));
+            const H = (x, y) => has.has(x + ',' + y);
+            const aligned = prev.filter(t => H(t.x - 2, t.y) && H(t.x + 2, t.y) && (H(t.x, t.y - 2) || H(t.x, t.y + 2))).map(t => ({ x: t.x, y: t.y, z }));
+            const offset = prev.filter(t => H(t.x + 2, t.y) && H(t.x, t.y + 2) && H(t.x + 2, t.y + 2)).map(t => ({ x: t.x + 1, y: t.y + 1, z }));
+            const layer = rng() < offsetBias ? (offset.length ? offset : aligned) : (aligned.length ? aligned : offset);
+            if (!layer.length) break;
+            all.push(...layer);
+            prev = layer;
+        }
+        return all;
+    }
+
+    function isCovered(t, list) {
+        for (const o of list) {
+            if (o !== t && o.z > t.z && Math.abs(o.x - t.x) < 2 && Math.abs(o.y - t.y) < 2) return true;
+        }
+        return false;
+    }
+
+    // Removes uncovered tiles (outer edges first, in mirror pairs) until the board has `target` tiles
+    function trimSlots(slots, target, rng) {
+        const arr = slots.map(s => ({ ...s }));
+        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+        arr.forEach(t => { minX = Math.min(minX, t.x); maxX = Math.max(maxX, t.x); minY = Math.min(minY, t.y); maxY = Math.max(maxY, t.y); });
+        const X = minX + maxX, Y = minY + maxY;
+        const removeBest = () => {
+            let best = null, bestScore = -Infinity;
+            for (const t of arr) {
+                if (isCovered(t, arr)) continue;
+                const score = Math.abs(t.x * 2 - X) * 0.5 + Math.abs(t.y * 2 - Y) * 0.35 - t.z * 1.5 + rng() * 1.5;
+                if (score > bestScore) { bestScore = score; best = t; }
+            }
+            if (!best) return null;
+            arr.splice(arr.indexOf(best), 1);
+            return best;
+        };
+        while (arr.length > target) {
+            const t = removeBest();
+            if (!t) break;
+            if (arr.length > target) {
+                const mirror = arr.find(o => o.z === t.z && o.y === t.y && o.x === X - t.x);
+                if (mirror && !isCovered(mirror, arr)) arr.splice(arr.indexOf(mirror), 1);
+            }
+        }
+        if (arr.length % 2) removeBest();
+        return arr;
+    }
+
+    function generateFormation(rng, targetTiles, maxLayers) {
+        const cands = [];
+        const big = targetTiles > 70;
+        for (let i = 0; i < (big ? 16 : 10); i++) {
+            const roll = rng();
+            let c;
+            if (roll < (big ? 0.08 : 0.2)) {
+                const f = rngPick(rng, FORMATIONS);
+                c = { name: f.name, slots: f.build().filter(s => s.z < maxLayers) };
+            } else if (roll < (big ? 0.25 : 0.55)) {
+                const sh = rngPick(rng, SHAPES);
+                c = { name: sh.name, slots: stackLayers(maskToSlots(sh.rows), rng, maxLayers) };
+            } else {
+                const cols = rngInt(rng, big ? 6 : 4, 7), rows = rngInt(rng, big ? 6 : 4, 8);
+                let base = maskToSlots(proceduralMask(rng, cols, rows, big));
+                // Turtle-style "ears" that block the middle rows from the side
+                if (cols <= 5 && rows % 2 === 0 && rng() < 0.4) base = base.concat([{ x: -2, y: rows - 1, z: 0 }, { x: cols * 2, y: rows - 1, z: 0 }]);
+                c = { name: `${rngPick(rng, NAME_ADJ)} ${rngPick(rng, NAME_NOUN)}`, slots: stackLayers(base, rng, maxLayers) };
+            }
+            if (c.slots.length >= 8) cands.push(c);
+        }
+        if (big && !cands.some(c => c.slots.length >= targetTiles)) {
+            // Guaranteed dense fallback: a full half-offset pyramid
+            const base = maskToSlots(Array.from({ length: 8 }, () => '#######'));
+            cands.push({ name: 'Grand Imperial Pyramid', slots: stackLayers(base, (() => { let first = true; return () => (first ? (first = false, 0.99) : 0); })(), maxLayers) });
+        }
+        const enough = cands.filter(c => c.slots.length >= targetTiles).sort((a, b) => a.slots.length - b.slots.length);
+        const pick = enough.length
+            ? enough[Math.floor(rng() * Math.min(3, enough.length))]
+            : cands.sort((a, b) => b.slots.length - a.slots.length)[0];
+        return { name: pick.name, slots: trimSlots(pick.slots, targetTiles, rng) };
+    }
+
+    /* ============================================================================
+       5. SANCTUARY TRAINING — 12 HAND-BUILT LESSONS (+ 8 TRIALS GENERATED BELOW)
+          Step types: info (Got it), match (forced pair), tapBlocked (forced tap on a
+          blocked tile), button (forced power-up / chest action), free (play freely;
+          advances when the level is cleared).
+       ============================================================================ */
+    const S = (x, y, z = 0) => ({ x, y, z });
+    const rowOf = (y, n, z = 0, x0 = 0) => Array.from({ length: n }, (_, i) => S(x0 + i * 2, y, z));
+
+    const TUTORIAL = {
+        1: {
+            title: 'Tap & Match',
+            slots: [...rowOf(0, 3), ...rowOf(2, 3)],
+            types: ['w1', 'a1', 't4', 't4', 'a1', 'w1'],
+            steps: [
+                { type: 'info', title: 'Welcome to the Sanctuary! 🐼', text: "Your goal: clear every tile by matching identical pairs. Let's learn by playing!" },
+                { type: 'match', uids: [0, 5], title: 'Tap & Match', text: 'Tap the Panda 🐼, then tap its twin to match them!' },
+                { type: 'match', uids: [3, 2], title: 'Nice one! ✨', text: 'Now match the two Lucky Coins.' },
+                { type: 'free', text: 'Finish the last pair on your own! 💪' },
+                { type: 'info', target: '#wheelWrap', title: 'Imperial Chance Chest 🎁', text: 'Every cleared level earns a spin on the treasure wheel. Prizes are power-ups for your item dock.' },
+                { type: 'button', action: 'spin', target: '#spinChestBtn', title: 'Spin it!', text: 'Tap SPIN!' },
+                { type: 'info', target: '#prizeResultBox', title: 'Treasure! 🎉', text: 'Your prize flies straight into your item dock. You can earn up to 3 spins per level.' },
+                { type: 'button', action: 'next', target: '#nextLevelBtn', title: 'Onward!', text: 'Tap NEXT LEVEL to continue.' }
+            ]
+        },
+        2: {
+            title: 'Free vs Blocked',
+            slots: rowOf(0, 6),
+            types: ['w3', 'a6', 't4', 't4', 'a6', 'w3'],
+            steps: [
+                { type: 'info', title: 'Free vs Blocked 🚧', text: 'You can only pick a tile when its LEFT or RIGHT side is open.' },
+                { type: 'tapBlocked', uid: 2, title: 'Try this one', text: 'This tile has neighbours on both sides. Tap it and see what happens…' },
+                { type: 'info', target: 'tile:2', title: 'Blocked! 🙅', text: "It wiggled — it's stuck. Blocked tiles look darker; free tiles are bright." },
+                { type: 'match', uids: [0, 5], title: 'Work from the edges', text: 'The end tiles are free. Match the Golden Koi!' },
+                { type: 'free', text: 'Keep peeling from the outside in!' }
+            ]
+        },
+        3: {
+            title: 'Stacks',
+            slots: [...rowOf(0, 3), ...rowOf(2, 3), S(1, 1, 1), S(3, 1, 1)],
+            types: ['w9', 'a2', 'a8', 'a8', 'a2', 'w9', 'w6', 'w6'],
+            steps: [
+                { type: 'info', target: 'tile:6', title: 'Stacked Tiles 🏯', text: 'Tiles can sit on top of others. Coloured edges and corner dots show how high a tile is.' },
+                { type: 'tapBlocked', uid: 0, title: 'Underneath…', text: 'Tap this lower tile.' },
+                { type: 'info', target: 'tile:0', title: 'Covered! ⛔', text: 'Any tile resting on top blocks it — even partly.' },
+                { type: 'match', uids: [6, 7], title: 'Top first!', text: 'Clear the Jade Dragons on top.' },
+                { type: 'free', text: 'The bottom layer is open now — finish it!' }
+            ]
+        },
+        4: {
+            title: 'Know Your Screen',
+            slots: [...rowOf(0, 4), ...rowOf(2, 4)],
+            types: ['t1', 't2', 't2', 't1', 'b5', 'b2', 'b2', 'b5'],
+            steps: [
+                { type: 'info', target: '#levelBox', title: 'Level & Board 🀄', text: 'Your level and the board name. 🀄 = tiles left. ✅ = free pairs you can match right now.' },
+                { type: 'info', target: '#rankBox', title: 'Score & Rank 🏆', text: 'Your score and Sanctuary Rank. Tap it anytime to open the guide.' },
+                { type: 'info', target: '#spinMeter', title: 'Chest Spins 🎁', text: "Spins you've earned for this level's chest (max 3)." },
+                { type: 'info', target: '#dock', title: 'Item Dock 🧰', text: 'Your power-ups live here. The badge shows how many you own.' },
+                { type: 'info', target: '#settingsBtn', title: 'Settings ⚙️', text: 'Sound, music, vibration and your save slots.' },
+                { type: 'free', text: 'Now clear the board!' }
+            ]
+        },
+        5: {
+            title: 'Combo Rush',
+            slots: [...rowOf(0, 6), ...rowOf(2, 6)],
+            types: ['w4', 'a3', 't2', 't2', 'a3', 'w4', 'b7', 'w8', 't6', 't6', 'w8', 'b7'],
+            steps: [
+                { type: 'info', target: '#hud', title: 'Combo Time! 🔥', text: 'Match pairs within 5 seconds of each other to build a COMBO multiplier. A timer bar appears up here!' },
+                { type: 'free', text: 'Go go go! Chain them FAST! ⚡' }
+            ]
+        },
+        6: {
+            title: 'Hints',
+            slots: [...rowOf(0, 4), ...rowOf(2, 4), ...rowOf(4, 4), S(1, 1, 1), S(5, 1, 1)],
+            steps: [
+                { type: 'info', title: 'Stuck? Get a Hint 💡', text: "Can't spot a match? The Hint bulb lights up a free pair for you." },
+                { type: 'button', action: 'hint', target: '#btnHint', give: 'hint', title: 'Use a Hint', text: 'Tap the 💡 Hint button.' },
+                { type: 'match', hinted: true, title: 'There it is!', text: 'Match the glowing pair.' },
+                { type: 'free', text: 'Clear the rest. Hints are limited — use them wisely!' }
+            ]
+        },
+        7: {
+            title: 'Undo',
+            slots: [...rowOf(0, 4), ...rowOf(2, 2), ...rowOf(4, 4)],
+            types: ['w1', 'a1', 'a1', 'w1', 't3', 't3', 'b1', 'b9', 'b9', 'b1'],
+            steps: [
+                { type: 'info', title: 'Oops-Proof 📜', text: 'Everyone makes mistakes. Undo brings your last matched pair back!' },
+                { type: 'match', uids: [0, 3], title: 'Match these', text: 'Match the two Pandas…' },
+                { type: 'button', action: 'undo', target: '#btnUndo', give: 'undo', title: 'Changed your mind?', text: 'Tap 📜 Undo to bring them back!' },
+                { type: 'info', title: "They're back! 🔁", text: 'Use Undo whenever a match leaves you stuck.' },
+                { type: 'free', text: 'Clear the board your way!' }
+            ]
+        },
+        8: {
+            title: 'Golden Glory',
+            slots: [...rowOf(0, 4), ...rowOf(2, 4), ...rowOf(4, 4), S(1, 1, 1), S(5, 1, 1)],
+            golden: 12,
+            steps: [
+                { type: 'info', target: 'tile:12', title: 'Golden Tiles 🌟', text: 'Golden pairs score DOUBLE points and add +1 chest spin — up to 3 spins per level!' },
+                { type: 'free', text: 'Find the golden twin and match it! 🌟' },
+                { type: 'info', target: '#spinsLeftBanner', title: 'Bonus Spins! 🎰', text: 'Extra spins from your golden pair. More spins = more treasure!' },
+                { type: 'free' }
+            ]
+        },
+        9: {
+            title: 'Shuffle Wind',
+            slots: [...rowOf(0, 2), ...rowOf(2, 4), ...rowOf(4, 4)],
+            types: ['w7', 'w7', 'a4', 't8', 'a4', 't8', 'b4', 'b6', 'b4', 'b6'],
+            steps: [
+                { type: 'info', target: '#pairsBox', title: 'Watch the ✅ counter', text: 'It shows how many free pairs you can match right now.' },
+                { type: 'match', uids: [0, 1], title: 'Match these', text: 'Match the Lotus pair.' },
+                { type: 'info', target: '#pairsBox', title: 'Uh-oh! 😱', text: "✅ shows 0 — no free pairs left. You're stuck!" },
+                { type: 'button', action: 'shuffle', target: '#btnShuffle', give: 'shuffle', title: 'Shuffle Wind 🌪️', text: 'Tap Shuffle to rearrange the tiles into a solvable layout!' },
+                { type: 'free', text: 'Saved! Finish it off.' }
+            ]
+        },
+        10: {
+            title: 'Auto-Complete',
+            slots: [...rowOf(0, 6), ...rowOf(2, 6), S(3, 1, 1), S(7, 1, 1)],
+            types: ['a1', 'a5', 'a9', 'a9', 'a5', 'a1', 't1', 't5', 't9', 't9', 't5', 't1', 'w2', 'w2'],
+            steps: [
+                { type: 'info', title: 'Auto-Complete ✨', text: 'When no tile is stacked on another, the board can finish itself!' },
+                { type: 'match', uids: [12, 13], title: 'Clear the top', text: 'Match the Red Pandas on top.' },
+                { type: 'button', action: 'auto', target: '#autoCompleteBtn', title: 'Everything is flat!', text: 'Tap Auto-Complete and enjoy the show!' },
+                { type: 'free' }
+            ]
+        },
+        11: {
+            title: 'Mystery Tiles',
+            slots: [...rowOf(0, 3), ...rowOf(2, 3), S(1, 1, 1), S(3, 1, 1), ...rowOf(4, 4)],
+            mystery: [1],
+            steps: [
+                { type: 'info', target: 'tile:1', title: 'Mystery Tiles 🔮', text: 'Purple tiles hide their face until they become free.' },
+                { type: 'tapBlocked', uid: 1, title: 'Sneak a peek', text: 'Tap the mystery tile to peek underneath!' },
+                { type: 'info', title: 'Peeked! 👀', text: "It reveals for good once it's free. Rumour says a certain relic can unmask them all…" },
+                { type: 'free', text: 'Clear the board!' }
+            ]
+        },
+        12: {
+            title: 'Sanctuary Rank',
+            slots: [...rowOf(0, 4), ...rowOf(2, 4), ...rowOf(4, 4), S(1, 1, 1), S(3, 1, 1), S(1, 3, 1), S(3, 3, 1)],
+            steps: [
+                { type: 'info', target: '#rankBox', title: 'Sanctuary Rank 🏆', text: 'Win 🎋 Golden Bamboo Charms from the chest to rank up. Higher ranks multiply your score and can grant free Divine Blessing matches!' },
+                { type: 'info', title: 'Training Trials ahead ⚔️', text: 'Next come 8 Trials — no more hand-holding. Not every secret has been revealed… experiment! 😉' },
+                { type: 'free', text: "Show me what you've learned!" }
+            ]
+        }
+    };
+
+    /* ============================================================================
+       6. DIFFICULTY CURVE & GUARANTEED-SOLVABLE BOARD GENERATOR
+       ============================================================================ */
+    const MAX_SPINS = 3;
+    const TRAINING_LEVELS = 20;
+    const MODIFIERS = [
+        { id: 'golden', name: '🌟 Golden Rain', desc: 'Extra Golden pairs this level!' },
+        { id: 'misty', name: '🌫️ Misty Peaks', desc: 'Extra Mystery tiles hide in the mist!' },
+        { id: 'speed', name: '⚡ Speed Blessing', desc: 'Combo window stretched to 8 seconds!' }
+    ];
+    const easeInOut = t => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+
+    function getLevelConfig(level) {
+        if (level <= 12) {
+            return { kind: 'tutorial', tut: TUTORIAL[level], variety: 6, d: 0 };
+        }
+        if (level <= TRAINING_LEVELS) {
+            const k = level - 12; // trial 1..8: 28 → 56 tiles
+            return { kind: 'training', pairs: 12 + k * 2, layers: k <= 2 ? 2 : 3, variety: 7 + k, mystery: k >= 4 ? (k >= 7 ? 2 : 1) : 0, golden: 1, d: 0.1 + k * 0.03 };
+        }
+        // Endless: ramps for ~130 levels, then holds at max difficulty forever
+        const e = easeInOut(Math.min(1, (level - 21) / 130));
+        const cfg = {
+            kind: 'endless',
+            pairs: Math.round(26 + e * 32),
+            layers: 3 + (e > 0.35 ? 1 : 0) + (e > 0.7 ? 1 : 0),
+            variety: Math.round(12 + e * 24),
+            mystery: Math.round(e * 8),
+            golden: 1 + (e > 0.4 ? 1 : 0) + (e > 0.8 ? 1 : 0),
+            d: e,
+            modifier: null,
+            isBoss: false
+        };
+        if (level >= 30 && level % 10 === 0) {
+            cfg.isBoss = true;
+            cfg.pairs = Math.min(64, cfg.pairs + 6);
+            cfg.golden++;
+            cfg.layers = Math.min(5, cfg.layers + 1);
+        } else if (level >= 25) {
+            const r = mulberry32(hashSeed(level, 4242))();
+            if (r < 0.45) cfg.modifier = MODIFIERS[Math.floor(r / 0.15)];
+        }
+        if (cfg.modifier && cfg.modifier.id === 'golden') cfg.golden += 2;
+        if (cfg.modifier && cfg.modifier.id === 'misty') cfg.mystery += 4;
+        return cfg;
+    }
+
+    // A tile at (x, y, z) occupies [x, x+2] horizontally and [y, y+2] vertically.
+    function isTileFree(tile, activeTiles) {
+        let blockedLeft = false;
+        let blockedRight = false;
+        for (const other of activeTiles) {
+            if (other.uid === tile.uid || other.removed) continue;
+            if (other.z > tile.z) {
+                if (Math.abs(other.x - tile.x) < 2 && Math.abs(other.y - tile.y) < 2) return false;
+            } else if (other.z === tile.z && Math.abs(other.y - tile.y) < 2) {
+                if (other.x === tile.x - 2) blockedLeft = true;
+                if (other.x === tile.x + 2) blockedRight = true;
+            }
+        }
+        return !(blockedLeft && blockedRight);
+    }
+
+    function hasTileAbove(tile, activeTiles) {
+        for (const other of activeTiles) {
+            if (other.uid === tile.uid || other.removed) continue;
+            if (other.z > tile.z && Math.abs(other.x - tile.x) < 2 && Math.abs(other.y - tile.y) < 2) return true;
+        }
+        return false;
+    }
+
+    // Reverse-peel: repeatedly remove two tiles that are free at the same time. Playing the
+    // pairs in that order is a guaranteed solution. Returns null if the peel gets stuck.
+    function peelPairs(slots, rng, d) {
+        const v = slots.map((s, i) => ({ uid: i, x: s.x, y: s.y, z: s.z, removed: false }));
+        const order = [];
+        let remaining = v.length;
+        while (remaining > 0) {
+            const free = v.filter(t => !t.removed && isTileFree(t, v));
+            if (free.length < 2) return null;
+            free.sort((a, b) => (b.z - a.z) + (rng() - 0.5) * (1.2 + d * 2));
+            const first = free[0];
+            // Harder levels pair tiles that are far apart instead of neighbours on the same storey
+            const second = rng() < 0.35 + d * 0.5 ? free[1 + Math.floor(rng() * (free.length - 1))] : free[1];
+            first.removed = true;
+            second.removed = true;
+            remaining -= 2;
+            order.push([first.uid, second.uid]);
+        }
+        return order;
+    }
+
+    function fallbackPairs(slots) {
+        const v = slots.map((s, i) => ({ uid: i, x: s.x, y: s.y, z: s.z, removed: false }));
+        const order = [];
+        while (v.some(t => !t.removed)) {
+            const free = v.filter(t => !t.removed && isTileFree(t, v));
+            const pool = free.length >= 2 ? free : v.filter(t => !t.removed);
+            pool[0].removed = true;
+            pool[1].removed = true;
+            order.push([pool[0].uid, pool[1].uid]);
+        }
+        return order;
+    }
+
+    function generateBoard(level) {
+        const cfg = getLevelConfig(level);
+        let slots, name;
+        if (cfg.kind === 'tutorial') {
+            slots = cfg.tut.slots.map(s => ({ ...s }));
+            name = cfg.tut.title;
+        } else {
+            const f = generateFormation(mulberry32(hashSeed(level, 1)), cfg.pairs * 2, cfg.layers);
+            slots = f.slots;
+            name = f.name;
+        }
+
+        let order = null;
+        let rng = null;
+        for (let attempt = 0; attempt < 40 && !order; attempt++) {
+            rng = mulberry32(hashSeed(level, 1000 + attempt));
+            order = peelPairs(slots, rng, cfg.d || 0);
+        }
+        if (!order) order = fallbackPairs(slots);
+
+        const tiles = slots.map((s, i) => ({
+            uid: i, x: s.x, y: s.y, z: s.z,
+            tileId: 'b1', removed: false, isGolden: false, isMystery: false, mysteryRevealed: false
+        }));
+
+        if (cfg.kind === 'tutorial' && cfg.tut.types) {
+            cfg.tut.types.forEach((id, i) => { tiles[i].tileId = id; });
+        } else {
+            const pool = rngShuffle(TILE_CATALOG.map(c => c.id), rng).slice(0, Math.max(4, Math.min(TILE_CATALOG.length, cfg.variety)));
+            const typeList = rngShuffle(order.map((_, i) => pool[i % pool.length]), rng);
+            order.forEach(([a, b], i) => { tiles[a].tileId = typeList[i]; tiles[b].tileId = typeList[i]; });
+        }
+
+        if (cfg.kind === 'tutorial') {
+            if (cfg.tut.golden != null) {
+                const g = tiles[cfg.tut.golden];
+                const pair = order.find(p => p.includes(g.uid));
+                const partner = cfg.tut.types ? tiles.find(t => t.uid !== g.uid && t.tileId === g.tileId) : tiles[pair[0] === g.uid ? pair[1] : pair[0]];
+                g.isGolden = true;
+                if (partner) partner.isGolden = true;
+            }
+            (cfg.tut.mystery || []).forEach(u => { tiles[u].isMystery = true; });
+        } else {
+            rngShuffle(order.map((_, i) => i), rng).slice(0, Math.min(cfg.golden, order.length))
+                .forEach(i => order[i].forEach(u => { tiles[u].isGolden = true; }));
+            const blocked = tiles.filter(t => !isTileFree(t, tiles));
+            rngShuffle(blocked, rng).slice(0, cfg.mystery).forEach(t => { t.isMystery = true; });
+        }
+
+        return { tiles, order, formationName: name, modifier: cfg.modifier || null, isBoss: !!cfg.isBoss, cfg };
+    }
+
+    /* ============================================================================
+       7. GAME STATE, SETTINGS & 3-SLOT SAVE SYSTEM
+       ============================================================================ */
+    const RANKS = [
+        { name: "🌱 Bamboo Novice", minCharms: 0, mult: 1.0, blessingChance: 0.00 },
+        { name: "🥈 Silver Disciple", minCharms: 4, mult: 1.2, blessingChance: 0.05 },
+        { name: "🟢 Jade Guardian", minCharms: 10, mult: 1.5, blessingChance: 0.09 },
+        { name: "🟡 Golden Sage", minCharms: 18, mult: 1.8, blessingChance: 0.12 },
+        { name: "👑 Imperial Master", minCharms: 30, mult: 2.2, blessingChance: 0.16 }
+    ];
+
+    const settings = { sound: true, music: false, haptics: true, highlightFree: true, autoNext: false, volume: 0.8 };
+    const SLOT_KEY = n => `jadeSanctuary_slot${n}`;
+    const SETTINGS_KEY = 'jadeSanctuary_settings';
+    const LEGACY_KEY = 'jadeSanctuaryMahjong_v1';
+    const newInventory = () => ({ hint: 3, shuffle: 2, undo: 3, torch: 1, eagle: 1 });
+
+    let currentSlot = null;
+    let state = freshState();
+
+    function freshState() {
+        return {
+            level: 1,
+            score: 0,
+            charms: 0,
+            inventory: newInventory(),
+            tutorialDone: false,
+            returnLevel: null,
+            seen: { torch: false, eagle: false },
+            streak: 0,
+            bestStreak: 0,
+            bestCombo: 0,
+            levelsCleared: 0,
+            // Active level runtime state
+            tiles: [],
+            order: null,
+            selectedUid: null,
+            hintedUids: null,
+            undoStack: [],
+            combo: 0,
+            comboDeadline: 0,
+            comboWindow: 5500,
+            eagleEyeActive: false,
+            chestSpinsEarned: 1,
+            chestSpinsRemaining: 0,
+            wheelRotation: 0,
+            isSpinning: false,
+            autoCompleting: false,
+            levelDone: false,
+            formationName: '',
+            modifier: null,
+            isBoss: false,
+            levelStartTime: Date.now(),
+            itemsUsed: 0,
+            fit: null
+        };
+    }
+
+    function storageGet(key) {
+        try {
+            const raw = localStorage.getItem(key);
+            return raw ? JSON.parse(raw) : null;
+        } catch (e) {
+            return null;
+        }
+    }
+    function storageSet(key, value) {
+        try {
+            localStorage.setItem(key, JSON.stringify(value));
+        } catch (e) {
+            console.warn('Storage save failed:', e);
+        }
+    }
+    function storageDel(key) {
+        try { localStorage.removeItem(key); } catch (e) { /* ignore */ }
+    }
+
+    function loadSettings() {
+        const saved = storageGet(SETTINGS_KEY);
+        if (saved) Object.assign(settings, saved);
+    }
+    function saveSettings() {
+        storageSet(SETTINGS_KEY, settings);
+    }
+
+    // The old single save (v1) moves into slot 1; its levels had no training, so they map to 20 + N
+    function migrateLegacy() {
+        const old = storageGet(LEGACY_KEY);
+        if (!old || storageGet(SLOT_KEY(1)) || storageGet('jadeSanctuary_migrated')) return;
+        storageSet(SLOT_KEY(1), {
+            v: 2,
+            level: TRAINING_LEVELS + (old.level || 1),
+            score: old.score || 0,
+            charms: old.charms || 0,
+            inventory: { ...newInventory(), ...(old.inventory || {}) },
+            tutorialDone: true,
+            seen: { torch: true, eagle: true },
+            streak: 0, bestStreak: 0, bestCombo: 0,
+            levelsCleared: Math.max(0, (old.level || 1) - 1),
+            lastPlayed: Date.now(),
+            board: null
+        });
+        if (old.settings) {
+            if (typeof old.settings.sound === 'boolean') settings.sound = old.settings.sound;
+            if (typeof old.settings.highlightFree === 'boolean') settings.highlightFree = old.settings.highlightFree;
+            saveSettings();
+        }
+        storageSet('jadeSanctuary_migrated', true);
+    }
+
+    function nextLevelAfter(level) {
+        return level === TRAINING_LEVELS && state.returnLevel ? state.returnLevel : level + 1;
+    }
+
+    function saveProgress() {
+        if (!currentSlot) return;
+        const data = {
+            v: 2,
+            level: state.levelDone ? nextLevelAfter(state.level) : state.level,
+            score: state.score,
+            charms: state.charms,
+            inventory: state.inventory,
+            tutorialDone: state.tutorialDone,
+            returnLevel: state.returnLevel,
+            seen: state.seen,
+            streak: state.streak,
+            bestStreak: state.bestStreak,
+            bestCombo: state.bestCombo,
+            levelsCleared: state.levelsCleared,
+            lastPlayed: Date.now(),
+            board: null
+        };
+        // Resume mid-level (scripted lessons simply restart instead)
+        if (!state.levelDone && state.level > 12 && state.tiles.length) {
+            data.board = {
+                level: state.level,
+                tiles: state.tiles.map(t => ({ uid: t.uid, x: t.x, y: t.y, z: t.z, tileId: t.tileId, removed: t.removed, isGolden: t.isGolden, isMystery: t.isMystery, mysteryRevealed: t.mysteryRevealed })),
+                undoStack: state.undoStack,
+                chestSpinsEarned: state.chestSpinsEarned,
+                eagleEyeActive: state.eagleEyeActive,
+                formationName: state.formationName,
+                modifier: state.modifier,
+                isBoss: state.isBoss,
+                comboWindow: state.comboWindow,
+                itemsUsed: state.itemsUsed,
+                elapsed: (Date.now() - state.levelStartTime) / 1000
+            };
+        }
+        storageSet(SLOT_KEY(currentSlot), data);
+    }
+
+    function getCurrentRank(charms = state.charms) {
+        let current = RANKS[0];
+        for (const r of RANKS) if (charms >= r.minCharms) current = r;
+        return current;
+    }
+
+    function getNextRankProgress() {
+        for (let i = 0; i < RANKS.length; i++) {
+            if (state.charms < RANKS[i].minCharms) {
+                const prev = RANKS[i - 1].minCharms;
+                const span = RANKS[i].minCharms - prev;
+                return Math.min(100, Math.round(((state.charms - prev) / span) * 100));
+            }
+        }
+        return 100;
+    }
+
+    /* ============================================================================
+       8. BOARD RENDERING & PIXEL-EXACT MOBILE CENTERING
+       ============================================================================ */
+    const TILE_W = 64, TILE_H = 86;
+    const UNIT_W = 32, UNIT_H = 43;      // half a tile
+    const LAYER_DX = 7, LAYER_DY = -9;   // each storey shifts up-right
+    const TILE_DEPTH = 7;                // extruded edge, down-left of the face
+
+    function resetLevelRuntime() {
+        state.selectedUid = null;
+        state.hintedUids = null;
+        state.undoStack = [];
+        state.combo = 0;
+        state.comboDeadline = 0;
+        state.comboWindow = 5500;
+        state.eagleEyeActive = false;
+        state.chestSpinsEarned = 1;
+        state.autoCompleting = false;
+        state.levelDone = false;
+        state.itemsUsed = 0;
+        state.levelStartTime = Date.now();
+        state.fit = null;
+        $('eagleEyeActiveBadge').classList.add('hidden');
+        $('eagleEyeActiveBadge').classList.remove('flex');
+        $('autoCompleteBtn').classList.add('hidden');
+        ['noMovesModal', 'chestModal'].forEach(closeModal);
+    }
+
+    function startLevel(levelNum, { restart = false } = {}) {
+        state.level = levelNum;
+        resetLevelRuntime();
+        if (restart) state.streak = 0;
+
+        const gen = generateBoard(levelNum);
+        state.tiles = gen.tiles;
+        state.order = gen.order;
+        state.formationName = gen.formationName;
+        state.modifier = gen.modifier;
+        state.isBoss = gen.isBoss;
+        if (state.modifier && state.modifier.id === 'speed') state.comboWindow = 8000;
+        if (state.isBoss) state.chestSpinsEarned = 2;
+
+        applyLevelHeader();
+        renderFullBoard();
+        updateAllHUD();
+
+        if (levelNum <= 12) {
+            Tutorial.start(levelNum);
+        } else {
+            Tutorial.clear();
+        }
+        if (levelNum > 12 && levelNum <= TRAINING_LEVELS) {
+            announce(`TRIAL ${levelNum - 12}/8`, '#fde68a', state.formationName);
+        } else if (state.isBoss) {
+            announce('BOSS BOARD', '#fca5a5', `Level ${levelNum}`);
+            SoundFX.gong();
+        } else if (levelNum > TRAINING_LEVELS) {
+            announce(`LEVEL ${levelNum}`, '#fde68a', state.formationName);
+        }
+        if (state.modifier) setTimeout(() => spawnFloatingBanner(`${state.modifier.name}: ${state.modifier.desc}`, '#d8b4fe'), 700);
+        saveProgress();
+    }
+
+    function restoreBoard(board) {
+        state.level = board.level;
+        resetLevelRuntime();
+        state.tiles = board.tiles.map(t => ({ ...t }));
+        state.order = null;
+        state.undoStack = board.undoStack || [];
+        state.chestSpinsEarned = Math.min(MAX_SPINS, board.chestSpinsEarned || 1);
+        state.eagleEyeActive = !!board.eagleEyeActive;
+        state.formationName = board.formationName || 'Sanctuary';
+        state.modifier = board.modifier || null;
+        state.isBoss = !!board.isBoss;
+        state.comboWindow = board.comboWindow || 5500;
+        state.itemsUsed = board.itemsUsed || 0;
+        state.levelStartTime = Date.now() - (board.elapsed || 0) * 1000;
+        if (state.eagleEyeActive) {
+            $('eagleEyeActiveBadge').classList.remove('hidden');
+            $('eagleEyeActiveBadge').classList.add('flex');
+        }
+        Tutorial.clear();
+        applyLevelHeader();
+        renderFullBoard();
+        updateAllHUD();
+        spawnFloatingBanner(`▶ Resumed Level ${state.level}`, '#a7f3d0');
+    }
+
+    function applyLevelHeader() {
+        $('levelBadge').textContent = state.level;
+        let label = state.formationName;
+        if (state.level <= 12) label = `🎓 ${label}`;
+        else if (state.level <= TRAINING_LEVELS) label = `🎓 Trial ${state.level - 12}/8 · ${label}`;
+        $('formationName').textContent = label;
+        const mb = $('modifierBadge');
+        if (state.isBoss) {
+            mb.textContent = '👹 BOSS BOARD';
+            mb.classList.remove('hidden');
+        } else if (state.modifier) {
+            mb.textContent = state.modifier.name;
+            mb.classList.remove('hidden');
+        } else {
+            mb.classList.add('hidden');
+        }
+    }
+
+    function renderFullBoard({ shuffleIn = false } = {}) {
+        const container = $('boardContainer');
+        container.innerHTML = '';
+        const maxZ = state.tiles.reduce((m, t) => Math.max(m, t.z), 0);
+
+        // Lower storeys first; within a storey, top rows and right columns first, so each
+        // tile's down-left edge tucks under its neighbour like real stacked tiles
+        const sorted = [...state.tiles].sort((a, b) => a.z - b.z || a.y - b.y || b.x - a.x);
+        const frag = document.createDocumentFragment();
+
+        sorted.forEach((tile, renderOrder) => {
+            tile._px = tile.x * UNIT_W + tile.z * LAYER_DX;
+            tile._py = tile.y * UNIT_H + tile.z * LAYER_DY;
+            if (tile.removed) return;
+
+            const el = document.createElement('div');
+            el.id = `tile-${tile.uid}`;
+            el.className = `mahjong-tile L${Math.min(tile.z, 4)}${tile.isGolden ? ' golden-tile' : ''}${shuffleIn ? ' shuffle-in' : ''}`;
+            el.style.left = `${tile._px}px`;
+            el.style.top = `${tile._py}px`;
+            el.style.zIndex = `${tile.z * 1000 + renderOrder}`;
+            el.style.setProperty('--z', tile.z);
+            el.style.setProperty('--shade', ((maxZ - tile.z) * 0.07).toFixed(2));
+            if (shuffleIn) el.style.animationDelay = `${(Math.random() * 0.18).toFixed(2)}s`;
+
+            const meta = CATALOG_BY_ID[tile.tileId] || TILE_CATALOG[0];
+            const pips = maxZ > 0 ? `<div class="layer-pips">${'<i></i>'.repeat(tile.z + 1)}</div>` : '';
+            el.innerHTML = `
+                <div class="tile-body">
+                    <div class="tile-inner">
+                        <span class="tile-corner-badge" style="color:${meta.color}; background:rgba(255,255,255,0.88);">${meta.badge}</span>
+                        ${tile.isGolden ? '<span class="absolute top-0.5 right-1 text-[11px] z-[4]">🌟</span>' : ''}
+                        <div class="w-[88%] h-[88%] flex items-center justify-center pt-1">${getTileSVG(tile.tileId)}</div>
+                        ${pips}
+                        ${tile.isMystery ? `
+                            <div id="mystery-${tile.uid}" class="mystery-cover ${tile.mysteryRevealed || state.eagleEyeActive ? 'hidden' : ''}">
+                                <span class="text-2xl font-extrabold text-amber-300">?</span>
+                                <span class="text-[9px] text-purple-200 font-bold uppercase tracking-wider">Mystery</span>
+                            </div>` : ''}
+                    </div>
+                    <div class="tile-shade"></div>
+                </div>`;
+            el.addEventListener('click', (e) => {
+                e.stopPropagation();
+                onTileTapped(tile.uid);
+            });
+            frag.appendChild(el);
+        });
+
+        container.appendChild(frag);
+        if (shuffleIn) setTimeout(() => container.querySelectorAll('.shuffle-in').forEach(el => el.classList.remove('shuffle-in')), 800);
+        fitBoard(false);
+        refreshBoardInteractivity();
+    }
+
+    // Measures the real drawn extent of the remaining tiles (faces + extruded edges + layer
+    // offsets) and centres that box exactly in the board area, at the largest scale that fits.
+    function fitBoard(animate = false) {
+        const viewport = $('boardViewport');
+        const container = $('boardContainer');
+        const active = state.tiles.filter(t => !t.removed && t._px != null);
+        if (!active.length || !viewport) return;
+
+        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+        for (const t of active) {
+            minX = Math.min(minX, t._px - TILE_DEPTH);
+            maxX = Math.max(maxX, t._px + TILE_W);
+            minY = Math.min(minY, t._py);
+            maxY = Math.max(maxY, t._py + TILE_H + TILE_DEPTH);
+        }
+        const pad = 10; // room for the selected-tile lift
+        minX -= pad; maxX += pad; minY -= pad; maxY += pad;
+        const bw = maxX - minX, bh = maxY - minY;
+        const vw = viewport.clientWidth, vh = viewport.clientHeight;
+        if (!vw || !vh) return;
+
+        const s = Math.min(vw / bw, vh / bh, 1.5);
+        const tx = (vw - bw * s) / 2 - minX * s;
+        const ty = (vh - bh * s) / 2 - minY * s;
+        if (animate && state.fit && Math.abs(state.fit.s - s) < 0.01 && Math.abs(state.fit.tx - tx) < 3 && Math.abs(state.fit.ty - ty) < 3) return;
+
+        container.classList.toggle('board-anim', animate);
+        container.style.transform = `translate(${tx.toFixed(1)}px, ${ty.toFixed(1)}px) scale(${s.toFixed(4)})`;
+        state.fit = { s, tx, ty };
+    }
+
+    /* ============================================================================
+       9. GAMEPLAY LOOP: SELECTION, MATCHING, COMBOS & DIVINE BLESSINGS
+       ============================================================================ */
+    function refreshBoardInteractivity() {
+        if (!state.tiles.length) return;
+        const active = state.tiles.filter(t => !t.removed);
+        const freeList = [];
+
+        active.forEach(tile => {
+            const free = isTileFree(tile, active);
+            if (free) {
+                freeList.push(tile);
+                // Mystery tiles reveal for good once they're unblocked
+                if (tile.isMystery && !tile.mysteryRevealed) {
+                    tile.mysteryRevealed = true;
+                    const mEl = $(`mystery-${tile.uid}`);
+                    if (mEl) {
+                        mEl.classList.add('reveal-out');
+                        setTimeout(() => mEl.classList.add('hidden'), 300);
+                        SoundFX.mystery();
+                    }
+                }
+            }
+            const el = $(`tile-${tile.uid}`);
+            if (!el) return;
+            el.classList.toggle('selected', state.selectedUid === tile.uid);
+            el.classList.toggle('dimmed', settings.highlightFree && !free);
+            el.classList.remove('xray-match');
+        });
+
+        // Eagle Eye: highlight every twin of the selected tile
+        if (state.eagleEyeActive && state.selectedUid !== null) {
+            const sel = state.tiles.find(t => t.uid === state.selectedUid);
+            if (sel) {
+                active.forEach(t => {
+                    if (t.uid !== sel.uid && t.tileId === sel.tileId) {
+                        const el = $(`tile-${t.uid}`);
+                        if (el) el.classList.add('xray-match');
+                    }
+                });
+            }
+        }
+
+        const openPairs = findAvailablePairs(freeList);
+        $('tilesLeftCount').textContent = active.length;
+        $('availPairsCount').textContent = openPairs.length;
+
+        // Auto-Complete appears when nothing is stacked and the board is small
+        const anyStacked = active.some(t => hasTileAbove(t, active));
+        const autoBtn = $('autoCompleteBtn');
+        // (taught in lesson 10, so earlier lessons can't skip their own forced moves)
+        const showAuto = state.level >= 10 && !anyStacked && active.length >= 4 && active.length <= 16 && !state.autoCompleting && !state.levelDone;
+        autoBtn.classList.toggle('hidden', !showAuto);
+
+        if (active.length === 0 && !state.levelDone) {
+            state.levelDone = true;
+            saveProgress();
+            setTimeout(onLevelCompleted, 420);
+        } else if (active.length > 0 && openPairs.length === 0 && !state.autoCompleting) {
+            setTimeout(() => {
+                if (state.levelDone || state.autoCompleting || Tutorial.blocking()) return;
+                const act = state.tiles.filter(t => !t.removed);
+                if (!act.length || findAvailablePairs(act.filter(t => isTileFree(t, act))).length) return;
+                if (!$('noMovesModal').classList.contains('hidden')) return;
+                SoundFX.gong();
+                buzz([40, 60, 40]);
+                openModal('noMovesModal');
+            }, 520);
+        }
+    }
+
+    function findAvailablePairs(freeList) {
+        const pairs = [];
+        for (let i = 0; i < freeList.length; i++) {
+            for (let j = i + 1; j < freeList.length; j++) {
+                if (freeList[i].tileId === freeList[j].tileId) pairs.push([freeList[i], freeList[j]]);
+            }
+        }
+        return pairs;
+    }
+
+    function onTileTapped(uid) {
+        if (state.autoCompleting || state.levelDone) return;
+        const tile = state.tiles.find(t => t.uid === uid);
+        if (!tile || tile.removed) return;
+        if (!Tutorial.can('tile', uid)) {
+            Tutorial.nudge();
+            return;
+        }
+
+        document.querySelectorAll('.mahjong-tile.hinted').forEach(el => el.classList.remove('hinted'));
+
+        const active = state.tiles.filter(t => !t.removed);
+        if (!isTileFree(tile, active)) {
+            // Blocked mystery tiles allow a quick peek
+            if (tile.isMystery && !tile.mysteryRevealed) {
+                const mEl = $(`mystery-${tile.uid}`);
+                if (mEl) {
+                    mEl.classList.add('peeking');
+                    setTimeout(() => mEl.classList.remove('peeking'), 900);
+                }
+            }
+            SoundFX.error();
+            buzz(25);
+            const el = $(`tile-${uid}`);
+            if (el) {
+                el.classList.remove('shake');
+                void el.offsetWidth;
+                el.classList.add('shake');
+            }
+            Tutorial.notify('blockedTap', uid);
+            return;
+        }
+
+        if (state.selectedUid === uid) {
+            state.selectedUid = null;
+            SoundFX.deselect();
+            refreshBoardInteractivity();
+            Tutorial.render();
+            return;
+        }
+
+        const first = state.selectedUid !== null ? state.tiles.find(t => t.uid === state.selectedUid) : null;
+        if (first && first.tileId === tile.tileId) {
+            executeMatchPair(first, tile, 'player');
+            return;
+        }
+        // First pick, or switch selection to the newly tapped free tile
+        state.selectedUid = uid;
+        SoundFX.select();
+        buzz(8);
+        refreshBoardInteractivity();
+        Tutorial.render();
+    }
+
+    const COMBO_TIERS = [
+        null, null,
+        { text: 'NICE!', color: '#a7f3d0' },
+        { text: 'GREAT!', color: '#fde68a' },
+        { text: 'AMAZING!', color: '#fdba74' },
+        { text: 'INCREDIBLE!', color: '#f9a8d4' },
+        { text: 'LEGENDARY!', color: '#c4b5fd' }
+    ];
+
+    function executeMatchPair(tileA, tileB, source = 'player') {
+        state.selectedUid = null;
+        tileA.removed = true;
+        tileB.removed = true;
+        state.undoStack.push([tileA.uid, tileB.uid]);
+
+        const now = Date.now();
+        state.combo = now < state.comboDeadline ? state.combo + 1 : 1;
+        state.comboDeadline = now + state.comboWindow;
+        state.bestCombo = Math.max(state.bestCombo, state.combo);
+
+        const golden = tileA.isGolden || tileB.isGolden;
+        if (golden) SoundFX.golden();
+        else SoundFX.match(state.combo);
+
+        const rank = getCurrentRank();
+        const pointsEarned = Math.round(50 * state.combo * rank.mult * (golden ? 2 : 1));
+        state.score += pointsEarned;
+
+        if (golden) {
+            if (state.chestSpinsEarned < MAX_SPINS) {
+                state.chestSpinsEarned++;
+                spawnFloatingBanner(`🌟 GOLDEN PAIR! +1 CHEST SPIN (${state.chestSpinsEarned}/${MAX_SPINS})`, '#fde047');
+            } else {
+                spawnFloatingBanner('🌟 GOLDEN PAIR! Spins maxed (3/3) — double points!', '#fde047');
+            }
+            buzz([15, 30, 15]);
+        } else if (source === 'blessing') {
+            spawnFloatingBanner('🐉 DIVINE BLESSING! FREE MATCH!', '#34d399');
+        }
+
+        if (source === 'player') {
+            buzz(12);
+            if (state.combo >= 2) {
+                const tier = COMBO_TIERS[Math.min(state.combo, COMBO_TIERS.length - 1)];
+                announce(tier.text, tier.color, `COMBO x${state.combo}`);
+                if (state.combo >= 3) SoundFX.comboTier(state.combo);
+            }
+            if (state.combo >= 4) screenShake();
+        }
+
+        // Particles + flying points, then the vanish animation
+        const colors = golden ? ['#fde047', '#fbbf24', '#ffffff', '#f59e0b']
+            : source === 'torch' ? ['#fb923c', '#ef4444', '#fde047', '#7c2d12']
+            : ['#34d399', '#fbbf24', '#a7f3d0', '#ffffff'];
+        [tileA, tileB].forEach((t, i) => {
+            const el = $(`tile-${t.uid}`);
+            if (!el) return;
+            const r = el.getBoundingClientRect();
+            const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+            FX.burst(cx, cy, colors, golden ? 26 : 14, { size: golden ? 5 : 4 });
+            if (i === 0) popPoints(cx, r.top, `+${pointsEarned}`, golden ? '#fde047' : '#ffffff');
+            el.classList.remove('selected', 'hinted', 'coach-target');
+            el.classList.add('matching');
+            setTimeout(() => el.remove(), 340);
+        });
+
+        Tutorial.notify('match', [tileA.uid, tileB.uid]);
+        updateAllHUD();
+        refreshBoardInteractivity();
+        saveProgress();
+        setTimeout(() => {
+            fitBoard(true);
+            Tutorial.render();
+        }, 360);
+
+        // Passive Rank Perk: Divine Blessing auto-match (not during scripted lessons)
+        if (source === 'player' && !state.autoCompleting && !Tutorial.isScripted() && rank.blessingChance > 0) {
+            const remaining = state.tiles.filter(t => !t.removed);
+            if (remaining.length >= 4 && Math.random() < rank.blessingChance) {
+                setTimeout(() => {
+                    if (state.levelDone) return;
+                    const act = state.tiles.filter(t => !t.removed);
+                    const pairs = findAvailablePairs(act.filter(t => isTileFree(t, act)));
+                    if (pairs.length) executeMatchPair(pairs[0][0], pairs[0][1], 'blessing');
+                }, 420);
+            }
+        }
+    }
+
+    function spawnFloatingBanner(text, color = '#fde047') {
+        const layer = $('floatingTextLayer');
+        const div = document.createElement('div');
+        div.className = 'floating-banner absolute left-1/2 px-4 py-1.5 rounded-full bg-black/80 border border-amber-400/70 font-extrabold text-xs shadow-xl whitespace-nowrap max-w-[94%] truncate';
+        div.style.top = `${10 + layer.children.length * 9}%`;
+        div.style.color = color;
+        div.textContent = text;
+        layer.appendChild(div);
+        setTimeout(() => div.remove(), 1600);
+    }
+
+    function popPoints(x, y, text, color) {
+        const div = document.createElement('div');
+        div.className = 'pop-points';
+        div.style.left = `${x}px`;
+        div.style.top = `${y}px`;
+        div.style.color = color;
+        div.textContent = text;
+        $('popLayer').appendChild(div);
+        setTimeout(() => div.remove(), 950);
+    }
+
+    function announce(text, color = '#fde68a', sub = '') {
+        const layer = $('announcer');
+        layer.innerHTML = '';
+        const div = document.createElement('div');
+        div.className = 'announce';
+        div.style.color = color;
+        div.textContent = text;
+        if (sub) {
+            const small = document.createElement('small');
+            small.textContent = sub;
+            div.appendChild(small);
+        }
+        layer.appendChild(div);
+        setTimeout(() => div.remove(), 1100);
+    }
+
+    function screenShake() {
+        const vp = $('boardViewport');
+        vp.classList.remove('screen-shake');
+        void vp.offsetWidth;
+        vp.classList.add('screen-shake');
+        buzz([20, 30, 20]);
+    }
+
+    // Combo timer bar
+    setInterval(() => {
+        const container = $('comboContainer');
+        const now = Date.now();
+        if (state.combo >= 2 && now < state.comboDeadline) {
+            container.style.opacity = '1';
+            $('comboText').textContent = `COMBO x${state.combo}`;
+            $('comboTimerBar').style.width = `${Math.max(0, ((state.comboDeadline - now) / state.comboWindow) * 100)}%`;
+        } else {
+            container.style.opacity = '0';
+        }
+    }, 100);
+
+    /* ============================================================================
+       10. POWER-UPS: HINT, SHUFFLE, UNDO, DRAGON TORCH, EAGLE EYE, AUTO-COMPLETE
+       ============================================================================ */
+    function canUseTool(kind) {
+        if (!state.tiles.length || state.levelDone || state.autoCompleting) return false;
+        if (!Tutorial.can(kind)) {
+            Tutorial.nudge();
+            return false;
+        }
+        return true;
+    }
+
+    function outOf(label) {
+        spawnFloatingBanner(`No ${label} left! Win more in the Chance Chest!`, '#f87171');
+        SoundFX.error();
+        buzz(30);
+    }
+
+    function useHint() {
+        if (!canUseTool('hint')) return;
+        if (state.inventory.hint <= 0) return outOf('Hints');
+        const active = state.tiles.filter(t => !t.removed);
+        const pairs = findAvailablePairs(active.filter(t => isTileFree(t, active)));
+        if (!pairs.length) {
+            openModal('noMovesModal');
+            return;
+        }
+        state.inventory.hint--;
+        state.itemsUsed++;
+        SoundFX.hint();
+        const [a, b] = pairs[Math.floor(Math.random() * pairs.length)];
+        state.hintedUids = [a.uid, b.uid];
+        [a.uid, b.uid].forEach(uid => {
+            const el = $(`tile-${uid}`);
+            if (el) el.classList.add('hinted');
+        });
+        updateAllHUD();
+        saveProgress();
+        Tutorial.notify('action', 'hint');
+    }
+
+    // Reassigns the remaining tile faces so the board is solvable again
+    function reshuffleSolvable(active) {
+        const counts = {};
+        active.forEach(t => { counts[t.tileId] = (counts[t.tileId] || 0) + 1; });
+        const pairTypes = [];
+        Object.keys(counts).forEach(id => { for (let i = 0; i < counts[id] / 2; i++) pairTypes.push(id); });
+
+        let order = null;
+        for (let attempt = 0; attempt < 30 && !order; attempt++) order = peelPairs(active, Math.random, 0.5);
+        if (!order) order = fallbackPairs(active);
+
+        rngShuffle(pairTypes, Math.random);
+        order.forEach(([a, b], i) => {
+            active[a].tileId = pairTypes[i];
+            active[b].tileId = pairTypes[i];
+        });
+    }
+
+    function useShuffle(freeRescue = false) {
+        if (!canUseTool('shuffle')) return;
+        if (!freeRescue && state.inventory.shuffle <= 0) return outOf('Shuffles');
+        if (state.inventory.shuffle > 0) state.inventory.shuffle--;
+        state.itemsUsed++;
+        SoundFX.shuffle();
+        buzz([10, 20, 10, 20, 10]);
+        state.selectedUid = null;
+        state.hintedUids = null;
+
+        reshuffleSolvable(state.tiles.filter(t => !t.removed));
+
+        spawnFloatingBanner('🌪️ Tiles Reshuffled!', '#38bdf8');
+        renderFullBoard({ shuffleIn: true });
+        updateAllHUD();
+        saveProgress();
+        Tutorial.notify('action', 'shuffle');
+    }
+
+    function useUndo() {
+        if (!canUseTool('undo')) return;
+        if (state.undoStack.length === 0) {
+            spawnFloatingBanner('Nothing to Undo yet!', '#94a3b8');
+            return;
+        }
+        if (state.inventory.undo <= 0) return outOf('Undo Scrolls');
+
+        state.inventory.undo--;
+        state.itemsUsed++;
+        const [uidA, uidB] = state.undoStack.pop();
+        state.tiles.forEach(t => { if (t.uid === uidA || t.uid === uidB) t.removed = false; });
+        state.selectedUid = null;
+        state.combo = 0;
+
+        SoundFX.undo();
+        spawnFloatingBanner('📜 Last Pair Restored!', '#fde047');
+        renderFullBoard();
+        updateAllHUD();
+        saveProgress();
+        Tutorial.notify('action', 'undo');
+    }
+
+    function discover(item, text) {
+        if (state.seen[item]) return;
+        state.seen[item] = true;
+        setTimeout(() => spawnFloatingBanner(text, '#fde68a'), 500);
+    }
+
+    function useDragonTorch() {
+        if (!canUseTool('torch')) return;
+        if (state.inventory.torch <= 0) return outOf('Dragon Torches');
+        const active = state.tiles.filter(t => !t.removed);
+        if (active.length < 2) return;
+
+        // Prefer blasting a buried/blocked pair to help the most
+        let chosen = null;
+        for (const t of active.filter(t => !isTileFree(t, active))) {
+            const match = active.find(o => o.uid !== t.uid && o.tileId === t.tileId);
+            if (match) { chosen = [t, match]; break; }
+        }
+        if (!chosen) {
+            const first = active[0];
+            const second = active.find(o => o.uid !== first.uid && o.tileId === first.tileId);
+            if (second) chosen = [first, second];
+        }
+        if (!chosen) return;
+
+        state.inventory.torch--;
+        state.itemsUsed++;
+        SoundFX.torch();
+        screenShake();
+        announce('🔥 FWOOSH!', '#fb923c');
+        discover('torch', '🔥 DISCOVERED: Dragon Torch burns away any pair — even buried ones!');
+        executeMatchPair(chosen[0], chosen[1], 'torch');
+    }
+
+    function useEagleEye() {
+        if (!canUseTool('eagle')) return;
+        if (state.eagleEyeActive) {
+            spawnFloatingBanner('🦅 Eagle Eye is already active this level!', '#38bdf8');
+            return;
+        }
+        if (state.inventory.eagle <= 0) return outOf('Eagle Eyes');
+
+        state.inventory.eagle--;
+        state.itemsUsed++;
+        state.eagleEyeActive = true;
+        SoundFX.eagle();
+
+        state.tiles.forEach(t => {
+            if (t.isMystery) {
+                t.mysteryRevealed = true;
+                const mEl = $(`mystery-${t.uid}`);
+                if (mEl) mEl.classList.add('hidden');
+            }
+        });
+
+        $('eagleEyeActiveBadge').classList.remove('hidden');
+        $('eagleEyeActiveBadge').classList.add('flex');
+        announce('🦅 EAGLE EYE', '#7dd3fc', 'Mysteries revealed');
+        discover('eagle', '🦅 DISCOVERED: Eagle Eye unmasks Mystery tiles & shows twins of your pick!');
+
+        refreshBoardInteractivity();
+        updateAllHUD();
+        saveProgress();
+    }
+
+    function triggerAutoComplete() {
+        if (state.autoCompleting || state.levelDone) return;
+        if (!Tutorial.can('auto')) {
+            Tutorial.nudge();
+            return;
+        }
+        state.autoCompleting = true;
+        state.selectedUid = null;
+        $('autoCompleteBtn').classList.add('hidden');
+        Tutorial.notify('action', 'auto');
+
+        const stepCascade = () => {
+            const active = state.tiles.filter(t => !t.removed);
+            if (active.length < 2) return;
+            const first = active[0];
+            const second = active.find(t => t.uid !== first.uid && t.tileId === first.tileId);
+            if (!second) {
+                state.autoCompleting = false;
+                return;
+            }
+            executeMatchPair(first, second, 'auto');
+            if (state.tiles.some(t => !t.removed)) setTimeout(stepCascade, 170);
+        };
+        stepCascade();
+    }
+
+    /* ============================================================================
+       11. IMPERIAL CHANCE CHEST (MAX 3 SPINS PER LEVEL)
+       ============================================================================ */
+    const CHEST_PRIZES = [
+        { icon: '💡', name: 'Hint', short: 'HINT', amount: 2, key: 'hint', color: '#065f46', btn: 'btnHint', desc: "Lights up a free matching pair when you're stuck." },
+        { icon: '🌪️', name: 'Shuffle', short: 'SHUFFLE', amount: 2, key: 'shuffle', color: '#0f766e', btn: 'btnShuffle', desc: 'Rearranges the remaining tiles into a solvable layout.' },
+        { icon: '🔥', name: 'Torch', short: 'TORCH', amount: 1, key: 'torch', color: '#9a3412', btn: 'btnTorch', desc: 'A rare relic of dragon fire… try it on a tough board!' },
+        { icon: '📜', name: 'Undo', short: 'UNDO', amount: 3, key: 'undo', color: '#1e40af', btn: 'btnUndo', desc: 'Brings your last matched pair back to the board.' },
+        { icon: '🦅', name: 'Eagle Eye', short: 'EAGLE', amount: 1, key: 'eagle', color: '#0c4a6e', btn: 'btnEagle', desc: 'A rare relic of keen sight… try it on mystery tiles!' },
+        { icon: '🎋', name: 'Charms', short: 'CHARMS', amount: 2, key: 'charms', color: '#92400e', btn: 'rankBox', desc: 'Golden Bamboo Charms raise your permanent Sanctuary Rank.' }
+    ];
+
+    function buildWheel() {
+        const P = a => {
+            const r = (a - 90) * Math.PI / 180;
+            return `${(100 + 100 * Math.cos(r)).toFixed(2)},${(100 + 100 * Math.sin(r)).toFixed(2)}`;
+        };
+        let html = `<defs><radialGradient id="wheelShine" cx="50%" cy="50%" r="50%"><stop offset="55%" stop-color="#000" stop-opacity="0"/><stop offset="100%" stop-color="#000" stop-opacity="0.35"/></radialGradient></defs>`;
+        CHEST_PRIZES.forEach((p, i) => {
+            const a0 = i * 60, a1 = a0 + 60;
+            html += `<path d="M100,100 L${P(a0)} A100,100 0 0,1 ${P(a1)} Z" fill="${p.color}" stroke="#fbbf24" stroke-width="1.5"/>`;
+            // Each label reads upright when its slice stops under the pointer
+            html += `<g transform="rotate(${a0 + 30} 100 100)">
+                <text x="100" y="33" font-size="25" text-anchor="middle" dominant-baseline="middle">${p.icon}</text>
+                <text x="100" y="57" font-size="9" font-weight="800" fill="#ffffff" text-anchor="middle" letter-spacing="0.5">${p.short}</text>
+                <text x="100" y="71" font-size="13" font-weight="800" fill="#fde047" text-anchor="middle">+${p.amount}</text>
+            </g>`;
+        });
+        html += `<circle cx="100" cy="100" r="99" fill="url(#wheelShine)"/>`;
+        $('wheelSvg').innerHTML = html;
+    }
+
+    function buildPrizeLegend() {
+        $('prizeLegend').innerHTML = CHEST_PRIZES.map((p, i) => `
+            <div id="legend-${i}" class="legend-item rounded-xl bg-black/35 border border-emerald-700/60 px-1 py-1.5">
+                <div class="text-2xl leading-none">${p.icon}</div>
+                <div class="text-[10px] font-extrabold text-amber-200 mt-1 leading-tight">${p.name} +${p.amount}</div>
+            </div>`).join('');
+    }
+
+    const fmtTime = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+
+    function onLevelCompleted() {
+        const elapsed = (Date.now() - state.levelStartTime) / 1000;
+        const par = state.tiles.length * 2.2 + 10;
+        let stars = 1;
+        if (state.itemsUsed === 0 && elapsed <= par) stars = 3;
+        else if (state.itemsUsed <= 2 && elapsed <= par * 1.8) stars = 2;
+        const bonus = Math.round(stars * 150 * getCurrentRank().mult);
+        state.score += bonus;
+        state.streak++;
+        state.bestStreak = Math.max(state.bestStreak, state.streak);
+        state.levelsCleared++;
+
+        SoundFX.fanfare();
+        FX.confetti();
+        buzz([30, 50, 30, 50, 60]);
+
+        state.chestSpinsEarned = Math.min(MAX_SPINS, state.chestSpinsEarned);
+        state.chestSpinsRemaining = state.chestSpinsEarned;
+
+        $('completedLevelNum').textContent = state.level;
+        $('levelStats').textContent = `⏱ ${fmtTime(elapsed)} · 🧰 ${state.itemsUsed} items · 🔥 streak ${state.streak} · +${bonus} star bonus`;
+        const starEls = $('starRow').children;
+        for (let i = 0; i < 3; i++) starEls[i].classList.remove('on');
+        for (let i = 0; i < stars; i++) {
+            setTimeout(() => {
+                starEls[i].classList.add('on');
+                SoundFX.star(i);
+            }, 450 + i * 300);
+        }
+
+        $('spinsRemainingNum').textContent = state.chestSpinsRemaining;
+        $('prizeResultIcon').textContent = '🎁';
+        $('prizeResultIcon').classList.remove('prize-reveal');
+        $('prizeResultTitle').textContent = 'Tap SPIN to claim your reward!';
+        $('prizeResultDesc').textContent = state.chestSpinsRemaining > 1
+            ? `You earned ${state.chestSpinsRemaining} spins thanks to Golden tiles!`
+            : 'Match Golden tiles to earn extra spins (max 3).';
+        $('prizeResultInv').textContent = '';
+        document.querySelectorAll('.legend-item').forEach(el => el.classList.remove('win'));
+        $('spinChestBtn').classList.remove('hidden');
+        $('nextLevelBtn').classList.add('hidden');
+        $('nextLevelBtn').textContent = 'NEXT LEVEL ➡️';
+
+        openModal('chestModal');
+        updateAllHUD();
+        saveProgress();
+        Tutorial.notify('levelComplete');
+    }
+
+    function spinChanceChest() {
+        if (state.isSpinning || state.chestSpinsRemaining <= 0) return;
+        if (!Tutorial.can('spin')) {
+            Tutorial.nudge();
+            return;
+        }
+        state.isSpinning = true;
+        state.chestSpinsRemaining--;
+        $('spinsRemainingNum').textContent = state.chestSpinsRemaining;
+        document.querySelectorAll('.legend-item').forEach(el => el.classList.remove('win'));
+        SoundFX.ui();
+        buzz(15);
+
+        const chosenIndex = Math.floor(Math.random() * CHEST_PRIZES.length);
+        const prize = CHEST_PRIZES[chosenIndex];
+
+        // Slice i is centred (i*60 + 30)° clockwise from the top pointer
+        const sliceTargetAngle = 360 - (chosenIndex * 60 + 30);
+        const currentMod = ((state.wheelRotation % 360) + 360) % 360;
+        state.wheelRotation += 5 * 360 + ((sliceTargetAngle - currentMod + 360) % 360);
+        const wheelEl = $('prizeWheel');
+        wheelEl.style.transform = `rotate(${state.wheelRotation}deg)`;
+
+        // Tick each time a slice boundary passes the pointer (follows the real wheel speed)
+        const pointer = $('wheelPointer');
+        let lastSlice = null;
+        const track = () => {
+            const m = getComputedStyle(wheelEl).transform.match(/matrix\(([^)]+)\)/);
+            if (m) {
+                const [a, b] = m[1].split(',').map(parseFloat);
+                const rel = ((-Math.atan2(b, a) * 180 / Math.PI) % 360 + 360) % 360;
+                const slice = Math.floor(rel / 60);
+                if (lastSlice !== null && slice !== lastSlice) {
+                    SoundFX.tick();
+                    pointer.classList.remove('wiggle');
+                    void pointer.offsetWidth;
+                    pointer.classList.add('wiggle');
+                }
+                lastSlice = slice;
+            }
+            if (state.isSpinning) requestAnimationFrame(track);
+        };
+        requestAnimationFrame(track);
+
+        setTimeout(() => {
+            state.isSpinning = false;
+            const before = prize.key === 'charms' ? state.charms : state.inventory[prize.key];
+            if (prize.key === 'charms') state.charms += prize.amount;
+            else state.inventory[prize.key] += prize.amount;
+            const after = prize.key === 'charms' ? state.charms : state.inventory[prize.key];
+
+            SoundFX.prize();
+            buzz([20, 40, 60]);
+            const iconEl = $('prizeResultIcon');
+            iconEl.textContent = prize.icon;
+            iconEl.classList.remove('prize-reveal');
+            void iconEl.offsetWidth;
+            iconEl.classList.add('prize-reveal');
+            $('prizeResultTitle').textContent = `${prize.name} +${prize.amount}!`;
+            $('prizeResultDesc').textContent = prize.desc;
+            $('prizeResultInv').textContent = prize.key === 'charms' ? `🎋 Charms: ${before} → ${after}` : `In your dock: ${before} → ${after}`;
+            $(`legend-${chosenIndex}`).classList.add('win');
+
+            const wr = $('wheelWrap').getBoundingClientRect();
+            FX.burst(wr.left + wr.width / 2, wr.top + wr.height / 2, ['#fde047', '#fbbf24', '#ffffff', '#34d399'], 40, { speed: 7, size: 5 });
+            flyToDock(prize);
+
+            updateAllHUD();
+            saveProgress();
+
+            if (state.chestSpinsRemaining <= 0) {
+                $('spinChestBtn').classList.add('hidden');
+                $('nextLevelBtn').classList.remove('hidden');
+                maybeAutoNext();
+            }
+            Tutorial.notify('action', 'spin');
+        }, 3900);
+    }
+
+    function flyToDock(prize) {
+        const from = $('prizeResultIcon').getBoundingClientRect();
+        const target = $(prize.btn);
+        if (!target) return;
+        const to = target.getBoundingClientRect();
+        const fly = document.createElement('div');
+        fly.className = 'fly-icon';
+        fly.textContent = prize.icon;
+        fly.style.left = `${from.left}px`;
+        fly.style.top = `${from.top}px`;
+        document.body.appendChild(fly);
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+            fly.style.transform = `translate(${to.left + to.width / 2 - from.left - 22}px, ${to.top + to.height / 2 - from.top - 22}px) scale(0.45)`;
+            fly.style.opacity = '0.3';
+        }));
+        setTimeout(() => {
+            fly.remove();
+            bumpEl(target);
+        }, 900);
+    }
+
+    let autoNextTimer = null;
+    function maybeAutoNext() {
+        if (!settings.autoNext || Tutorial.blocking()) return;
+        let n = 3;
+        const btn = $('nextLevelBtn');
+        clearInterval(autoNextTimer);
+        const tick = () => {
+            if ($('chestModal').classList.contains('hidden')) {
+                clearInterval(autoNextTimer);
+                return;
+            }
+            if (n <= 0) {
+                clearInterval(autoNextTimer);
+                proceedToNextLevel();
+                return;
+            }
+            btn.textContent = `NEXT in ${n}… ➡️`;
+            n--;
+        };
+        tick();
+        autoNextTimer = setInterval(tick, 1000);
+    }
+
+    function proceedToNextLevel() {
+        if (!Tutorial.can('next')) {
+            Tutorial.nudge();
+            return;
+        }
+        clearInterval(autoNextTimer);
+        Tutorial.notify('action', 'next');
+        closeModal('chestModal');
+        if (state.level === TRAINING_LEVELS && (!state.tutorialDone || state.returnLevel)) {
+            finishTraining();
+            return;
+        }
+        startLevel(state.level + 1);
+    }
+
+    function finishTraining() {
+        const target = state.returnLevel || TRAINING_LEVELS + 1;
+        state.tutorialDone = true;
+        state.returnLevel = null;
+        FX.confetti(220);
+        SoundFX.fanfare();
+        showMessage({
+            icon: '🎓',
+            title: 'Training Complete!',
+            text: "You've mastered the basics. The Endless Sanctuary awaits — harder boards, boss levels, strange modifiers… and secrets still left to discover.",
+            buttons: [{ label: 'Enter the Endless Sanctuary ➡️', style: 'primary', onClick: () => startLevel(target) }]
+        });
+    }
+
+    /* ============================================================================
+       12. TUTORIAL COACH ENGINE (SPOTLIGHT, POINTING FINGER, FORCED MOVES)
+       ============================================================================ */
+    const Tutorial = {
+        steps: null,
+        idx: 0,
+        level: 0,
+        token: 0,
+        freeTimer: null,
+
+        start(level) {
+            this.clear();
+            const tut = TUTORIAL[level];
+            if (!tut || !tut.steps) return;
+            this.steps = tut.steps.map(s => ({ ...s }));
+            this.idx = 0;
+            this.level = level;
+            this.enter();
+        },
+        clear() {
+            this.token++;
+            this.steps = null;
+            clearTimeout(this.freeTimer);
+            document.querySelectorAll('.coach-target').forEach(el => el.classList.remove('coach-target'));
+            $('coachLayer').classList.add('hidden');
+        },
+        get step() {
+            return this.steps ? this.steps[this.idx] || null : null;
+        },
+        isScripted() {
+            return !!this.steps;
+        },
+        blocking() {
+            const s = this.step;
+            return !!s && s.type !== 'free';
+        },
+        later(fn, ms) {
+            const tk = this.token;
+            setTimeout(() => { if (tk === this.token) fn(); }, ms);
+        },
+        enter() {
+            const s = this.step;
+            if (!s) {
+                this.clear();
+                return;
+            }
+            if (s.give && state.inventory[s.give] <= 0) {
+                state.inventory[s.give] = 1;
+                updateAllHUD();
+                spawnFloatingBanner(`🎁 Training gift: +1 ${s.give.toUpperCase()}`, '#fde047');
+            }
+            if (s.type !== 'free') SoundFX.coach();
+            this.render();
+        },
+        next() {
+            this.token++;
+            this.idx++;
+            this.enter();
+        },
+        notify(evt, data) {
+            const s = this.step;
+            if (!s) return;
+            if (evt === 'match' && s.type === 'match') {
+                const ids = s.hinted ? state.hintedUids : s.uids;
+                if (ids && data.every(u => ids.includes(u))) this.later(() => this.next(), 450);
+            } else if (evt === 'blockedTap' && s.type === 'tapBlocked' && data === s.uid) {
+                this.later(() => this.next(), 950);
+            } else if (evt === 'action' && s.type === 'button' && data === s.action) {
+                this.later(() => this.next(), s.action === 'auto' ? 150 : 550);
+            } else if (evt === 'levelComplete' && s.type === 'free') {
+                this.token++;
+                this.idx++;
+                $('coachLayer').classList.add('hidden');
+                this.later(() => this.enter(), 700);
+            }
+        },
+        can(kind, data) {
+            if (!this.blocking()) return true;
+            const s = this.step;
+            if (kind === 'tile') {
+                if (s.type === 'match') {
+                    const ids = s.hinted ? state.hintedUids : s.uids;
+                    return !!ids && ids.includes(data);
+                }
+                if (s.type === 'tapBlocked') return data === s.uid;
+                return false;
+            }
+            return s.type === 'button' && s.action === kind;
+        },
+        nudge() {
+            const b = $('coachBubble');
+            b.classList.remove('nudge');
+            void b.offsetWidth;
+            b.classList.add('nudge');
+            SoundFX.error();
+            buzz(20);
+        },
+        targetEl(s) {
+            if (s.type === 'match') {
+                const ids = s.hinted ? state.hintedUids : s.uids;
+                if (!ids) return null;
+                return $(`tile-${state.selectedUid === ids[0] ? ids[1] : ids[0]}`);
+            }
+            if (s.type === 'tapBlocked') return $(`tile-${s.uid}`);
+            if (s.target) {
+                if (s.target.startsWith('tile:')) return $(`tile-${s.target.slice(5)}`);
+                return document.querySelector(s.target);
+            }
+            return null;
+        },
+        render() {
+            const s = this.step;
+            const layer = $('coachLayer');
+            if (!s) {
+                layer.classList.add('hidden');
+                return;
+            }
+            const spot = $('coachSpot'), finger = $('coachFinger'), bubble = $('coachBubble');
+            layer.classList.remove('hidden');
+
+            document.querySelectorAll('.coach-target').forEach(el => el.classList.remove('coach-target'));
+
+            if (s.type === 'free') {
+                spot.style.display = 'none';
+                finger.style.display = 'none';
+                if (s.text && !s._shown) {
+                    s._shown = true;
+                    $('coachTitle').textContent = '';
+                    $('coachText').textContent = s.text;
+                    $('coachNextBtn').style.display = 'none';
+                    $('coachSkip').style.display = 'none';
+                    bubble.classList.add('passive');
+                    bubble.style.display = 'block';
+                    bubble.style.left = `${(window.innerWidth - bubble.offsetWidth) / 2}px`;
+                    bubble.style.top = `${$('hud').getBoundingClientRect().bottom + 8}px`;
+                    s._hideAt = Date.now() + 3200;
+                    clearTimeout(this.freeTimer);
+                    this.freeTimer = setTimeout(() => { if (this.step === s) bubble.style.display = 'none'; }, 3200);
+                } else if (!(s._hideAt && Date.now() < s._hideAt)) {
+                    bubble.style.display = 'none';
+                }
+                return;
+            }
+
+            if (s.type === 'match') {
+                const ids = s.hinted ? state.hintedUids : s.uids;
+                (ids || []).forEach(u => { const el = $(`tile-${u}`); if (el && u !== state.selectedUid) el.classList.add('coach-target'); });
+            }
+
+            const el = this.targetEl(s);
+            const W = window.innerWidth, H = window.innerHeight;
+            let r = el ? el.getBoundingClientRect() : null;
+            if (r && (r.width === 0 || r.height === 0)) r = null;
+            // Targets inside a scrolling modal (e.g. the SPIN button on short phones) are scrolled into view first
+            if (r && (r.bottom > H - 8 || r.top < 8)) {
+                el.scrollIntoView({ block: 'center' });
+                r = el.getBoundingClientRect();
+            }
+
+            spot.style.display = 'block';
+            if (r) {
+                const pad = 8;
+                spot.className = 'pulse';
+                spot.style.left = `${r.left - pad}px`;
+                spot.style.top = `${r.top - pad}px`;
+                spot.style.width = `${r.width + pad * 2}px`;
+                spot.style.height = `${r.height + pad * 2}px`;
+            } else {
+                spot.className = 'empty';
+                spot.style.left = `${W / 2}px`;
+                spot.style.top = `${H / 2}px`;
+                spot.style.width = '0px';
+                spot.style.height = '0px';
+            }
+
+            // The bubble must not cover the target, its twin (match steps) or the finger
+            let avoid = r ? { top: r.top, bottom: r.bottom } : null;
+            if (r && s.type === 'match') {
+                const ids = s.hinted ? state.hintedUids : s.uids;
+                (ids || []).forEach(u => {
+                    const tEl = $(`tile-${u}`);
+                    if (!tEl) return;
+                    const q = tEl.getBoundingClientRect();
+                    avoid.top = Math.min(avoid.top, q.top);
+                    avoid.bottom = Math.max(avoid.bottom, q.bottom);
+                });
+            }
+
+            // Finger points up from below, or down from above when the target is low on screen
+            let fingerAbove = false;
+            if (r && s.type !== 'info') {
+                fingerAbove = r.top + r.height / 2 > H * 0.62;
+                finger.style.display = 'block';
+                finger.textContent = fingerAbove ? '👇' : '👆';
+                finger.classList.toggle('down', fingerAbove);
+                finger.style.left = `${r.left + r.width / 2 - 21}px`;
+                finger.style.top = fingerAbove ? `${r.top - 50}px` : `${r.bottom + 4}px`;
+                if (fingerAbove) avoid.top = Math.min(avoid.top, r.top - 52);
+                else avoid.bottom = Math.max(avoid.bottom, r.bottom + 50);
+            } else {
+                finger.style.display = 'none';
+            }
+
+            $('coachTitle').textContent = s.title || '';
+            $('coachText').textContent = s.text || '';
+            $('coachNextBtn').style.display = s.type === 'info' ? '' : 'none';
+            $('coachSkip').style.display = this.level <= 12 ? '' : 'none';
+            bubble.classList.remove('passive');
+            bubble.style.display = 'block';
+            const bh = bubble.offsetHeight, bw = bubble.offsetWidth;
+            let top;
+            if (avoid) {
+                const gap = 12;
+                const spaceAbove = avoid.top - gap;
+                const spaceBelow = H - avoid.bottom - gap;
+                const above = spaceBelow < bh + 8 && spaceAbove > spaceBelow;
+                top = above ? avoid.top - gap - bh : avoid.bottom + gap;
+            } else {
+                top = (H - bh) / 2;
+            }
+            top = Math.max(8, Math.min(H - bh - 8, top));
+            const cx = r ? r.left + r.width / 2 : W / 2;
+            bubble.style.left = `${Math.max(12, Math.min(W - bw - 12, cx - bw / 2))}px`;
+            bubble.style.top = `${top}px`;
+        }
+    };
+
+    function coachNext() {
+        const s = Tutorial.step;
+        if (s && s.type === 'info') {
+            SoundFX.ui();
+            Tutorial.next();
+        }
+    }
+
+    function skipTraining() {
+        showMessage({
+            icon: '⏭️',
+            title: 'Skip Training?',
+            text: state.returnLevel
+                ? `You'll jump straight back to Level ${state.returnLevel}.`
+                : 'You can replay it anytime from the Guide. Skipping takes you straight to the Endless Sanctuary (Level 21).',
+            buttons: [
+                {
+                    label: 'Yes, skip it', style: 'primary', onClick: () => {
+                        const target = state.returnLevel || TRAINING_LEVELS + 1;
+                        state.tutorialDone = true;
+                        state.returnLevel = null;
+                        Tutorial.clear();
+                        ['settingsModal', 'chestModal', 'guideModal'].forEach(closeModal);
+                        startLevel(target);
+                    }
+                },
+                { label: 'Keep training', style: 'ghost' }
+            ]
+        });
+    }
+
+    function replayTraining() {
+        showMessage({
+            icon: '🎓',
+            title: 'Replay Training?',
+            text: state.tutorialDone
+                ? `Play the 20 training levels again. Afterwards you'll return to Level ${state.level}.`
+                : 'Restart the training from Level 1?',
+            buttons: [
+                {
+                    label: 'Start Training', style: 'primary', onClick: () => {
+                        if (state.tutorialDone && state.level > TRAINING_LEVELS) state.returnLevel = state.level;
+                        closeModal('guideModal');
+                        startLevel(1);
+                    }
+                },
+                { label: 'Cancel', style: 'ghost' }
+            ]
+        });
+    }
+
+    /* ============================================================================
+       13. HUD, MODALS, SETTINGS & TITLE / SAVE-SLOT SCREEN
+       ============================================================================ */
+    let prevInventory = {};
+    const DOCK = { hint: ['badgeHint', 'btnHint'], shuffle: ['badgeShuffle', 'btnShuffle'], undo: ['badgeUndo', 'btnUndo'], torch: ['badgeTorch', 'btnTorch'], eagle: ['badgeEagle', 'btnEagle'] };
+
+    function bumpEl(el) {
+        if (!el) return;
+        el.classList.remove('bump');
+        void el.offsetWidth;
+        el.classList.add('bump');
+    }
+
+    function updateAllHUD() {
+        $('scoreDisplay').textContent = state.score.toLocaleString();
+        $('rankTitle').textContent = getCurrentRank().name;
+        $('rankProgressBar').style.width = `${getNextRankProgress()}%`;
+        $('chestBonusCount').textContent = `${state.chestSpinsEarned}/${MAX_SPINS}`;
+        for (const [key, [badgeId, btnId]] of Object.entries(DOCK)) {
+            const n = state.inventory[key];
+            $(badgeId).textContent = n;
+            $(btnId).classList.toggle('opacity-60', n <= 0);
+            if (prevInventory[key] != null && n > prevInventory[key]) bumpEl($(btnId));
+            prevInventory[key] = n;
+        }
+        $('newTorch').classList.toggle('hidden', state.seen.torch || state.level < 13 || state.inventory.torch <= 0);
+        $('newEagle').classList.toggle('hidden', state.seen.eagle || state.level < 13 || state.inventory.eagle <= 0);
+    }
+
+    function syncSettingsUI() {
+        $('toggleSound').checked = settings.sound;
+        $('toggleMusic').checked = settings.music;
+        $('toggleHaptics').checked = settings.haptics;
+        $('toggleHighlightFree').checked = settings.highlightFree;
+        $('toggleAutoNext').checked = settings.autoNext;
+        $('volumeSlider').value = Math.round(settings.volume * 100);
+        $('volumeLabel').textContent = `${Math.round(settings.volume * 100)}%`;
+        const inTraining = state.level <= TRAINING_LEVELS && (!state.tutorialDone || state.returnLevel);
+        $('skipTrainingBtn').classList.toggle('hidden', !inTraining);
+    }
+
+    function updateSettings() {
+        settings.sound = $('toggleSound').checked;
+        settings.music = $('toggleMusic').checked;
+        settings.haptics = $('toggleHaptics').checked;
+        settings.highlightFree = $('toggleHighlightFree').checked;
+        settings.autoNext = $('toggleAutoNext').checked;
+        settings.volume = Number($('volumeSlider').value) / 100;
+        $('volumeLabel').textContent = `${Math.round(settings.volume * 100)}%`;
+        SoundFX.init();
+        SoundFX.applyVolumes();
+        if (settings.music) SoundFX.startMusic();
+        else SoundFX.stopMusic();
+        refreshBoardInteractivity();
+        saveSettings();
+    }
+
+    function openModal(id) {
+        if ((id === 'guideModal' || id === 'settingsModal') && Tutorial.blocking()) {
+            Tutorial.nudge();
+            return;
+        }
+        if (id === 'settingsModal') syncSettingsUI();
+        const el = $(id);
+        if (el) el.classList.remove('hidden');
+        SoundFX.ui();
+    }
+
+    function closeModal(id) {
+        const el = $(id);
+        if (el) el.classList.add('hidden');
+    }
+
+    function restartLevel() {
+        ['noMovesModal', 'settingsModal'].forEach(closeModal);
+        startLevel(state.level, { restart: true });
+    }
+
+    const MSG_BUTTON_STYLES = {
+        primary: 'w-full py-3 rounded-2xl bg-gradient-to-r from-amber-400 to-amber-500 text-emerald-950 font-extrabold text-sm shadow-lg active:scale-95 transition',
+        secondary: 'w-full py-3 rounded-2xl bg-emerald-800 border border-amber-400/40 text-amber-200 font-extrabold text-sm active:scale-95 transition',
+        danger: 'w-full py-3 rounded-2xl bg-gradient-to-r from-red-500 to-rose-600 text-white font-extrabold text-sm active:scale-95 transition',
+        ghost: 'w-full py-2 rounded-2xl text-emerald-300 font-bold text-xs'
+    };
+
+    function showMessage({ icon = '', title = '', text = '', buttons = [] }) {
+        $('msgIcon').textContent = icon;
+        $('msgTitle').textContent = title;
+        $('msgText').textContent = text;
+        const wrap = $('msgButtons');
+        wrap.innerHTML = '';
+        buttons.forEach(b => {
+            const btn = document.createElement('button');
+            btn.className = MSG_BUTTON_STYLES[b.style || 'secondary'];
+            btn.textContent = b.label;
+            btn.onclick = () => {
+                closeModal('msgModal');
+                SoundFX.ui();
+                if (b.onClick) b.onClick();
+            };
+            wrap.appendChild(btn);
+        });
+        $('msgModal').classList.remove('hidden');
+    }
+
+    function timeAgo(ts) {
+        const s = Math.max(0, (Date.now() - ts) / 1000);
+        if (s < 60) return 'just now';
+        if (s < 3600) return `${Math.floor(s / 60)} min ago`;
+        if (s < 86400) return `${Math.floor(s / 3600)} h ago`;
+        return `${Math.floor(s / 86400)} days ago`;
+    }
+
+    function renderSlots() {
+        const list = $('slotList');
+        let html = '';
+        for (let n = 1; n <= 3; n++) {
+            const d = storageGet(SLOT_KEY(n));
+            if (d) {
+                const training = d.level <= TRAINING_LEVELS && (!d.tutorialDone || d.returnLevel);
+                html += `
+                <div class="pop-in bg-emerald-950/90 border-2 border-amber-400/60 rounded-3xl p-3 shadow-xl flex items-center gap-3">
+                    <button onclick="slotContinue(${n})" class="flex-1 min-w-0 text-left active:scale-95 transition">
+                        <div class="text-[10px] font-extrabold tracking-widest text-emerald-300/80 uppercase">Slot ${n} · ${timeAgo(d.lastPlayed || 0)}</div>
+                        <div class="font-serif-asian font-extrabold text-amber-300 text-lg leading-tight truncate">Level ${d.level}${training ? ' · 🎓 Training' : ''}</div>
+                        <div class="text-xs text-white font-bold truncate">⭐ ${(d.score || 0).toLocaleString()} · ${getCurrentRank(d.charms || 0).name}</div>
+                    </button>
+                    <div class="flex flex-col gap-1.5 shrink-0">
+                        <button onclick="slotContinue(${n})" class="px-3 py-2 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 text-emerald-950 font-extrabold text-xs active:scale-95 transition">▶ Play</button>
+                        <button onclick="slotDelete(${n})" class="px-3 py-1.5 rounded-xl bg-black/40 border border-red-400/40 text-red-300 font-bold text-[11px] active:scale-95 transition">🗑 Delete</button>
+                    </div>
+                </div>`;
+            } else {
+                html += `
+                <button onclick="slotNew(${n})" class="pop-in w-full bg-black/30 border-2 border-dashed border-emerald-500/50 rounded-3xl p-4 text-left active:scale-95 transition">
+                    <div class="text-[10px] font-extrabold tracking-widest text-emerald-300/80 uppercase">Slot ${n} · Empty</div>
+                    <div class="font-serif-asian font-extrabold text-amber-200 text-lg">✨ New Game</div>
+                </button>`;
+            }
+        }
+        list.innerHTML = html;
+    }
+
+    function buildTitleTiles() {
+        $('titleTiles').innerHTML = ['w1', 'w6', 't4'].map((id, i) => {
+            const meta = CATALOG_BY_ID[id];
+            return `
+            <div class="title-tile" style="--r:${(i - 1) * 8}deg; animation-delay:${i * 0.4}s;">
+                <div class="mahjong-tile ${i === 1 ? 'L2 golden-tile' : 'L0'}" style="--z:1">
+                    <div class="tile-body"><div class="tile-inner">
+                        <span class="tile-corner-badge" style="color:${meta.color}; background:rgba(255,255,255,0.88);">${meta.badge}</span>
+                        <div class="w-[88%] h-[88%] flex items-center justify-center pt-1">${getTileSVG(id)}</div>
+                    </div></div>
+                </div>
+            </div>`;
+        }).join('');
+    }
+
+    function showTitle() {
+        renderSlots();
+        $('titleScreen').classList.remove('hidden');
+    }
+
+    function hideTitle() {
+        $('titleScreen').classList.add('hidden');
+    }
+
+    function slotNew(n) {
+        showMessage({
+            icon: '🐼',
+            title: 'New Adventure',
+            text: 'Start with the 20-level Sanctuary Training? It teaches the controls, the screen and the power-ups step by step.',
+            buttons: [
+                { label: '🎓 Start Training (recommended)', style: 'primary', onClick: () => beginNewGame(n, false) },
+                { label: '⚡ Skip to Endless (Level 21)', style: 'secondary', onClick: () => beginNewGame(n, true) },
+                { label: 'Cancel', style: 'ghost' }
+            ]
+        });
+    }
+
+    function beginNewGame(n, skipTraining) {
+        currentSlot = n;
+        state = freshState();
+        prevInventory = {};
+        if (skipTraining) {
+            state.tutorialDone = true;
+            state.level = TRAINING_LEVELS + 1;
+        }
+        hideTitle();
+        startLevel(state.level);
+    }
+
+    function slotContinue(n) {
+        const d = storageGet(SLOT_KEY(n));
+        if (!d) return slotNew(n);
+        currentSlot = n;
+        state = freshState();
+        prevInventory = {};
+        state.level = Math.max(1, d.level || 1);
+        state.score = d.score || 0;
+        state.charms = d.charms || 0;
+        state.inventory = { ...newInventory(), ...(d.inventory || {}) };
+        state.tutorialDone = !!d.tutorialDone || state.level > TRAINING_LEVELS;
+        state.returnLevel = state.level > TRAINING_LEVELS ? null : (d.returnLevel || null);
+        state.seen = { torch: false, eagle: false, ...(d.seen || {}) };
+        state.streak = d.streak || 0;
+        state.bestStreak = d.bestStreak || 0;
+        state.bestCombo = d.bestCombo || 0;
+        state.levelsCleared = d.levelsCleared || 0;
+        hideTitle();
+        if (d.board && d.board.level === state.level && state.level > 12) restoreBoard(d.board);
+        else startLevel(state.level);
+    }
+
+    function slotDelete(n) {
+        showMessage({
+            icon: '🗑️',
+            title: `Delete Slot ${n}?`,
+            text: 'This permanently erases this save. It cannot be undone.',
+            buttons: [
+                { label: 'Delete forever', style: 'danger', onClick: () => { storageDel(SLOT_KEY(n)); renderSlots(); } },
+                { label: 'Keep it', style: 'ghost' }
+            ]
+        });
+    }
+
+    function goMainMenu() {
+        saveProgress();
+        Tutorial.clear();
+        clearInterval(autoNextTimer);
+        ['settingsModal', 'guideModal', 'chestModal', 'noMovesModal'].forEach(closeModal);
+        currentSlot = null;
+        state = freshState();
+        $('boardContainer').innerHTML = '';
+        showTitle();
+    }
+
+    /* ============================================================================
+       14. DEBUG: ?debug=1 verifies boards are solvable & deterministic
+       ============================================================================ */
+    function verifyGenerated(gen) {
+        if (!gen.order) return null;
+        const tiles = gen.tiles.map(t => ({ ...t }));
+        for (const [a, b] of gen.order) {
+            const A = tiles[a], B = tiles[b];
+            if (A.tileId !== B.tileId) return 'type mismatch';
+            if (!isTileFree(A, tiles) || !isTileFree(B, tiles)) return 'pair not free';
+            A.removed = B.removed = true;
+        }
+        return tiles.every(t => t.removed) ? null : 'tiles left over';
+    }
+
+    function verifyLevels(levels) {
+        const failures = [];
+        for (const level of levels) {
+            const cfg = getLevelConfig(level);
+            if (cfg.kind === 'tutorial' && cfg.tut.types) continue; // hand-placed lessons
+            const a = generateBoard(level);
+            const err = verifyGenerated(a);
+            if (err) failures.push({ level, err });
+            const b = generateBoard(level);
+            if (JSON.stringify(a.tiles) !== JSON.stringify(b.tiles)) failures.push({ level, err: 'not deterministic' });
+        }
+        return failures;
+    }
+    window.__verifyLevels = verifyLevels;
+
+    /* ============================================================================
+       15. BOOT
+       ============================================================================ */
+    function onViewportChange() {
+        FX.resize();
+        fitBoard(false);
+        Tutorial.render();
+    }
+
+    window.addEventListener('load', function () {
+        loadSettings();
+        migrateLegacy();
+        FX.init();
+        buildWheel();
+        buildPrizeLegend();
+        buildTitleTiles();
+        syncSettingsUI();
+        showTitle();
+
+        window.addEventListener('resize', onViewportChange);
+        if (window.visualViewport) window.visualViewport.addEventListener('resize', onViewportChange);
+        window.addEventListener('orientationchange', () => setTimeout(onViewportChange, 250));
+        // Audio can only start after a user gesture (iOS)
+        document.addEventListener('pointerdown', () => {
+            SoundFX.init();
+            if (settings.music) SoundFX.startMusic();
+        }, { passive: true });
+        document.addEventListener('visibilitychange', () => { if (document.hidden) saveProgress(); });
+
+        if (/[?&]debug=1/.test(location.search)) {
+            const levels = [];
+            for (let l = 1; l <= 300; l++) levels.push(l);
+            for (let i = 0; i < 200; i++) levels.push(301 + Math.floor(Math.random() * 1000000));
+            const failures = verifyLevels(levels);
+            console.log(`[debug] verified ${levels.length} levels, failures:`, failures);
+            spawnFloatingBanner(`Debug: ${levels.length} levels checked, ${failures.length} failures`, failures.length ? '#f87171' : '#34d399');
+        }
+    });
+    </script>
+</body>
+</html>
