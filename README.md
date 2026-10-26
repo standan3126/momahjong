@@ -1,6 +1,6 @@
-# momajong
+# Momahjong
 
-**Jade Sanctuary Mahjong**: a mahjong solitaire game for phones (iPhone & Android), made to be played with a finger or stylus.
+**Momahjong** (Jade Sanctuary Mahjong): a calm mahjong solitaire game for phones (iPhone & Android), made to be played with a finger or stylus.
 
 ## Play
 Open the GitHub Pages link on the phone, then add it to the home screen:

@@ -1,2 +1,10 @@
 build/node_modules/
 *.backup.html
+
+# Personal / private notes (never public)
+CLAUDE.md
+updateV1.txt
+TXT.txt
+private/
+*.local*
+.env*
