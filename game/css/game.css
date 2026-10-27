@@ -1,0 +1,464 @@
+:root {
+    --tile-w: 64px;
+    --tile-h: 86px;
+}
+* {
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+}
+/* Pin the page to the visible screen: no rubber-banding, no sideways drift, no double-tap zoom */
+html, body {
+    position: fixed;
+    inset: 0;
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+    touch-action: manipulation;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    color: #fef3c7;
+    background: #05231a;
+}
+body {
+    display: flex;
+    flex-direction: column;
+    background: radial-gradient(circle at 50% 35%, #134e3a 0%, #07291e 65%, #031710 100%);
+}
+button { touch-action: manipulation; }
+.font-serif-asian {
+    font-family: 'Cinzel', serif;
+}
+/* Subtle Bamboo Forest Backdrop Pattern */
+.bamboo-bg {
+    background-image:
+        radial-gradient(circle at 20% 20%, rgba(251, 191, 36, 0.06) 0%, transparent 45%),
+        radial-gradient(circle at 80% 80%, rgba(16, 185, 129, 0.08) 0%, transparent 50%),
+        repeating-linear-gradient(90deg, rgba(255,255,255,0.012) 0px, rgba(255,255,255,0.012) 2px, transparent 2px, transparent 36px);
+}
+
+/* Notch / home-indicator safe areas */
+.safe-top {
+    padding-top: max(6px, env(safe-area-inset-top));
+    padding-left: max(8px, env(safe-area-inset-left));
+    padding-right: max(8px, env(safe-area-inset-right));
+}
+.safe-bottom {
+    padding-bottom: max(10px, env(safe-area-inset-bottom));
+    padding-left: max(8px, env(safe-area-inset-left));
+    padding-right: max(8px, env(safe-area-inset-right));
+}
+.safe-pad {
+    padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+}
+
+/* Board container is positioned & scaled entirely from JS (see fitBoard) */
+#boardContainer {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 0;
+    height: 0;
+    transform-origin: 0 0;
+}
+#boardContainer.board-anim {
+    transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ================= 3D STACKED MAHJONG TILE =================
+   Thickness is an extruded edge (stepped shadows) down-left of the face:
+   ivory top slab (--e1/--e2) over a coloured back (--e3/--e4) that changes
+   per layer, plus a soft cast shadow that grows with height (--z). */
+.mahjong-tile {
+    position: absolute;
+    width: var(--tile-w);
+    height: var(--tile-h);
+    cursor: pointer;
+    transition: transform 0.16s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.25s ease;
+    --e1: #f3ead3;
+    --e2: #e0d0a6;
+    --e3: #059669;
+    --e4: #065f46;
+    --rim: #cdbb8e;
+}
+.mahjong-tile.L1 { --e3: #0d9488; --e4: #115e59; --rim: #7fd6c4; }
+.mahjong-tile.L2 { --e3: #d97706; --e4: #92400e; --rim: #efc169; }
+.mahjong-tile.L3 { --e3: #dc2626; --e4: #7f1d1d; --rim: #f2a0a0; }
+.mahjong-tile.L4 { --e3: #7c3aed; --e4: #4c1d95; --rim: #c7aaf7; }
+
+.mahjong-tile .tile-body {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    border-radius: 10px;
+    padding: 3px;
+    background: linear-gradient(155deg, #fffdf9 0%, #f7f2e4 65%, #eadfc4 100%);
+    border: 2px solid var(--rim);
+    box-shadow:
+        -1px 1px 0 var(--e1),
+        -2px 2px 0 var(--e1),
+        -3px 3px 0 var(--e2),
+        -4px 4px 0 var(--e3),
+        -5px 5px 0 var(--e3),
+        -6px 6px 0 var(--e4),
+        -7px 7px 0 var(--e4),
+        -8px 9px 3px rgba(0, 0, 0, 0.42),
+        calc(-10px - var(--z, 0) * 3px) calc(13px + var(--z, 0) * 4px) calc(12px + var(--z, 0) * 5px) rgba(0, 0, 0, 0.45),
+        inset 0 2px 2px rgba(255, 255, 255, 0.95),
+        inset 0 -2px 3px rgba(150, 120, 60, 0.18);
+}
+.mahjong-tile .tile-inner {
+    width: 100%;
+    height: 100%;
+    border-radius: 7px;
+    border: 1px solid rgba(180, 155, 110, 0.35);
+    background: radial-gradient(circle at 50% 45%, #ffffff 0%, #faf5e8 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+}
+/* Lower layers sit in shadow; blocked tiles get dimmed on the same overlay */
+.mahjong-tile .tile-shade {
+    position: absolute;
+    inset: 0;
+    border-radius: 8px;
+    background: #0b1a12;
+    opacity: var(--shade, 0);
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+    z-index: 6;
+}
+.mahjong-tile.dimmed .tile-shade {
+    opacity: calc(var(--shade, 0) + 0.36);
+}
+/* Layer pips: one dot per storey (colour matches the layer edge) */
+.layer-pips {
+    position: absolute;
+    bottom: 3px;
+    right: 4px;
+    display: flex;
+    gap: 2px;
+    z-index: 4;
+}
+.layer-pips i {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--e3);
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.85);
+}
+
+/* Golden Glory Tile Variant */
+.mahjong-tile.golden-tile { --e1: #fde68a; --e2: #f59e0b; --rim: #fef08a; }
+.mahjong-tile.golden-tile .tile-body {
+    background: linear-gradient(145deg, #fffbeb 0%, #fde68a 50%, #f59e0b 100%);
+}
+.mahjong-tile.golden-tile .tile-inner {
+    background: radial-gradient(circle at 50% 40%, #fffbeb 0%, #fef3c7 75%, #fde68a 100%);
+    border-color: rgba(217, 119, 6, 0.45);
+}
+@keyframes goldShine {
+    0%, 100% { opacity: 0; transform: translateX(-120%) rotate(20deg); }
+    50% { opacity: 0.75; transform: translateX(120%) rotate(20deg); }
+}
+.golden-tile .tile-inner::after {
+    content: '';
+    position: absolute;
+    inset: -20%;
+    background: linear-gradient(90deg, transparent 40%, rgba(255,255,255,0.85) 50%, transparent 60%);
+    animation: goldShine 2.8s ease-in-out infinite;
+    pointer-events: none;
+}
+
+/* Selected Tile State */
+.mahjong-tile.selected {
+    transform: translate(3px, -9px) scale(1.07) !important;
+    z-index: 99999 !important;
+}
+.mahjong-tile.selected .tile-body {
+    border-color: #f59e0b;
+    background: linear-gradient(155deg, #ffffff 0%, #fef3c7 100%);
+    box-shadow:
+        -1px 1px 0 #fde68a, -2px 2px 0 #fcd34d, -3px 3px 0 #f59e0b,
+        -4px 4px 0 #d97706, -5px 5px 0 #d97706, -6px 6px 0 #b45309, -7px 7px 0 #92400e,
+        0 0 0 3px rgba(251, 191, 36, 0.95),
+        0 0 26px 7px rgba(251, 191, 36, 0.75),
+        -14px 22px 22px rgba(0, 0, 0, 0.6);
+}
+
+/* Hint Pulse Animation */
+@keyframes hintGlow {
+    0%, 100% { transform: translate(0, 0) scale(1); filter: drop-shadow(0 0 0px #38bdf8); }
+    50% { transform: translate(2px, -6px) scale(1.05); filter: drop-shadow(0 0 16px #34d399); }
+}
+.mahjong-tile.hinted, .mahjong-tile.coach-target {
+    animation: hintGlow 0.9s infinite ease-in-out;
+    z-index: 9500 !important;
+}
+.mahjong-tile.hinted .tile-body, .mahjong-tile.coach-target .tile-body {
+    border-color: #10b981;
+    box-shadow:
+        -2px 2px 0 #34d399, -4px 4px 0 #059669, -6px 6px 0 #047857, -7px 7px 0 #065f46,
+        0 0 0 3px rgba(52, 211, 153, 0.9),
+        0 0 22px 5px rgba(52, 211, 153, 0.85);
+}
+
+/* Eagle Eye Same-Kind Highlight */
+.mahjong-tile.xray-match .tile-body {
+    border-color: #38bdf8;
+    box-shadow:
+        -2px 2px 0 #7dd3fc, -4px 4px 0 #0284c7, -6px 6px 0 #0369a1, -7px 7px 0 #075985,
+        0 0 0 3px rgba(56, 189, 248, 0.9),
+        0 0 20px 4px rgba(56, 189, 248, 0.85);
+}
+
+/* Invalid Shake Animation */
+@keyframes shakeError {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-6px) rotate(-2deg); }
+    40% { transform: translateX(6px) rotate(2deg); }
+    60% { transform: translateX(-4px) rotate(-1deg); }
+    80% { transform: translateX(4px) rotate(1deg); }
+}
+.mahjong-tile.shake { animation: shakeError 0.36s ease; }
+
+/* Match Pop Disappear */
+@keyframes matchVanish {
+    0% { transform: scale(1.08); opacity: 1; }
+    40% { transform: translateY(-16px) scale(1.2); opacity: 1; filter: brightness(1.4); }
+    100% { transform: translateY(-28px) scale(0.1) rotate(12deg); opacity: 0; }
+}
+.mahjong-tile.matching {
+    animation: matchVanish 0.34s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    pointer-events: none;
+    z-index: 99998 !important;
+}
+
+/* Shuffle swirl-in */
+@keyframes shuffleIn {
+    0% { transform: scale(0.2) rotate(-200deg); opacity: 0; }
+    100% { transform: scale(1) rotate(0); opacity: 1; }
+}
+.mahjong-tile.shuffle-in { animation: shuffleIn 0.55s cubic-bezier(0.2, 1.2, 0.4, 1) both; }
+
+/* Mystery Tile Overlay */
+.mystery-cover {
+    position: absolute;
+    inset: 0;
+    border-radius: 7px;
+    background: linear-gradient(135deg, #4c1d95 0%, #311068 60%, #1e0942 100%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border: 1.5px solid #c084fc;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    z-index: 5;
+}
+.mystery-cover.peeking { opacity: 0.12; pointer-events: none; }
+.mystery-cover.reveal-out { opacity: 0; transform: scale(1.3) rotate(8deg); }
+
+/* Corner Suit Mini Badge for Extra Clarity */
+.tile-corner-badge {
+    position: absolute;
+    top: 2px;
+    left: 3px;
+    font-size: 11px;
+    font-weight: 800;
+    line-height: 1;
+    padding: 1px 3px;
+    border-radius: 4px;
+    z-index: 3;
+    letter-spacing: -0.03em;
+}
+
+/* Floating Banners */
+@keyframes floatUpFade {
+    0% { transform: translate(-50%, 10px) scale(0.8); opacity: 0; }
+    20% { transform: translate(-50%, -4px) scale(1.05); opacity: 1; }
+    80% { transform: translate(-50%, -18px) scale(1); opacity: 1; }
+    100% { transform: translate(-50%, -30px) scale(0.9); opacity: 0; }
+}
+.floating-banner {
+    animation: floatUpFade 1.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    pointer-events: none;
+}
+@keyframes pointsUp {
+    0% { transform: translate(-50%, 0) scale(0.6); opacity: 0; }
+    20% { transform: translate(-50%, -10px) scale(1.15); opacity: 1; }
+    100% { transform: translate(-50%, -54px) scale(1); opacity: 0; }
+}
+.pop-points {
+    position: fixed;
+    font-weight: 800;
+    font-size: 15px;
+    text-shadow: 0 2px 0 rgba(0,0,0,0.6), 0 0 10px rgba(0,0,0,0.5);
+    animation: pointsUp 0.9s ease-out forwards;
+    pointer-events: none;
+    white-space: nowrap;
+}
+
+/* Combo Announcer */
+@keyframes announcePop {
+    0% { transform: scale(0.3) rotate(-8deg); opacity: 0; }
+    22% { transform: scale(1.18) rotate(3deg); opacity: 1; }
+    40% { transform: scale(1) rotate(0); }
+    78% { opacity: 1; }
+    100% { transform: scale(1.08) translateY(-24px); opacity: 0; }
+}
+.announce {
+    position: absolute;
+    text-align: center;
+    font-family: 'Cinzel', serif;
+    font-weight: 800;
+    font-size: clamp(30px, 10vw, 54px);
+    line-height: 1;
+    -webkit-text-stroke: 1.5px rgba(0, 0, 0, 0.55);
+    text-shadow: 0 4px 0 rgba(0, 0, 0, 0.45), 0 0 26px currentColor;
+    animation: announcePop 1.05s cubic-bezier(0.2, 0.9, 0.3, 1.2) forwards;
+    pointer-events: none;
+    white-space: nowrap;
+}
+.announce small {
+    display: block;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 0.36em;
+    letter-spacing: 0.2em;
+    margin-top: 6px;
+}
+
+@keyframes screenShake {
+    0%, 100% { transform: translate(0, 0); }
+    20% { transform: translate(-5px, 3px); }
+    40% { transform: translate(5px, -3px); }
+    60% { transform: translate(-3px, -2px); }
+    80% { transform: translate(3px, 2px); }
+}
+.screen-shake { animation: screenShake 0.38s ease; }
+
+/* Chance Chest Wheel */
+#prizeWheel { transition: transform 3.8s cubic-bezier(0.12, 0.85, 0.18, 1); }
+#wheelWrap {
+    width: min(70vw, 290px, 34dvh);
+    height: min(70vw, 290px, 34dvh);
+}
+@keyframes pointerWiggle {
+    0%, 100% { transform: translateX(-50%) rotate(0); }
+    50% { transform: translateX(-50%) rotate(-14deg); }
+}
+#wheelPointer.wiggle { animation: pointerWiggle 0.12s ease; }
+.legend-item { transition: transform 0.2s ease, background 0.2s ease; }
+.legend-item.win {
+    background: rgba(245, 158, 11, 0.28);
+    border-color: #fbbf24;
+    transform: scale(1.06);
+    box-shadow: 0 0 16px rgba(251, 191, 36, 0.55);
+}
+@keyframes starPop {
+    0% { transform: scale(0.2) rotate(-40deg); opacity: 0.25; filter: grayscale(1); }
+    60% { transform: scale(1.4) rotate(10deg); opacity: 1; filter: none; }
+    100% { transform: scale(1) rotate(0); opacity: 1; filter: none; }
+}
+.star { display: inline-block; opacity: 0.25; filter: grayscale(1); }
+.star.on { animation: starPop 0.45s cubic-bezier(0.2, 1.4, 0.4, 1) forwards; }
+@keyframes prizeReveal {
+    0% { transform: scale(0.2) rotate(-30deg); opacity: 0; }
+    70% { transform: scale(1.25) rotate(8deg); opacity: 1; }
+    100% { transform: scale(1) rotate(0); opacity: 1; }
+}
+.prize-reveal { animation: prizeReveal 0.5s cubic-bezier(0.2, 1.4, 0.4, 1) both; }
+.fly-icon {
+    position: fixed;
+    z-index: 59;
+    font-size: 44px;
+    pointer-events: none;
+    transition: transform 0.85s cubic-bezier(0.5, -0.35, 0.6, 1), opacity 0.85s ease;
+}
+
+/* Dock */
+@keyframes bump {
+    0%, 100% { transform: scale(1); }
+    40% { transform: scale(1.22); }
+}
+.bump { animation: bump 0.45s ease; }
+@keyframes newPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.18); }
+}
+.new-badge {
+    position: absolute;
+    top: -8px;
+    left: -4px;
+    background: #ef4444;
+    color: #fff;
+    font-size: 9px;
+    font-weight: 800;
+    padding: 1px 5px;
+    border-radius: 999px;
+    border: 1.5px solid #fff;
+    animation: newPulse 1s infinite;
+}
+
+/* Tutorial coach marks */
+#coachLayer { position: fixed; inset: 0; z-index: 60; pointer-events: none; }
+#coachSpot {
+    position: fixed;
+    border-radius: 18px;
+    box-shadow: 0 0 0 200vmax rgba(0, 0, 0, 0.6);
+    border: 3px solid #fbbf24;
+    transition: left 0.35s cubic-bezier(0.22, 1, 0.36, 1), top 0.35s cubic-bezier(0.22, 1, 0.36, 1), width 0.35s cubic-bezier(0.22, 1, 0.36, 1), height 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+    pointer-events: none;
+}
+@keyframes spotPulse {
+    50% { border-color: #fde68a; box-shadow: 0 0 0 200vmax rgba(0, 0, 0, 0.6), 0 0 26px 8px rgba(251, 191, 36, 0.8); }
+}
+#coachSpot.pulse { animation: spotPulse 1.2s infinite; }
+#coachSpot.empty { border-color: transparent; }
+@keyframes fingerUp { 50% { transform: translateY(-10px); } }
+@keyframes fingerDown { 50% { transform: translateY(10px); } }
+#coachFinger {
+    position: fixed;
+    font-size: 42px;
+    line-height: 1;
+    pointer-events: none;
+    filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.6));
+    animation: fingerUp 0.9s infinite ease-in-out;
+}
+#coachFinger.down { animation-name: fingerDown; }
+#coachBubble {
+    position: fixed;
+    pointer-events: auto;
+    width: min(340px, calc(100vw - 24px));
+    background: linear-gradient(180deg, #065f46 0%, #022c22 100%);
+    border: 2px solid #fbbf24;
+    border-radius: 20px;
+    padding: 12px 14px;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+}
+#coachBubble.passive { pointer-events: none; opacity: 0.96; }
+#coachBubble.nudge { animation: shakeError 0.36s ease; }
+
+/* Title screen */
+@keyframes floaty {
+    0%, 100% { transform: translateY(0) rotate(var(--r, 0deg)); }
+    50% { transform: translateY(-10px) rotate(var(--r, 0deg)); }
+}
+.title-tile { position: relative; width: 64px; height: 86px; animation: floaty 3.2s ease-in-out infinite; }
+.title-tile .mahjong-tile { position: relative; }
+@keyframes popIn {
+    0% { transform: scale(0.85); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+}
+.pop-in { animation: popIn 0.28s cubic-bezier(0.2, 1.3, 0.4, 1); }
+
+/* Custom Scrollbar for Modals */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); border-radius: 8px; }
+::-webkit-scrollbar-thumb { background: rgba(245, 158, 11, 0.5); border-radius: 8px; }
+input[type=range] { accent-color: #fbbf24; }
