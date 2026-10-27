@@ -1,30 +1,17 @@
-# Offline build (installable app for phones)
+# Build
 
-`imperial_sanctuary_mahjong.html` stays the file you edit. This folder turns it into an
-offline-ready Progressive Web App in `../docs/`:
+Turns `../game/` into `../dist/`, the copy GitHub Pages publishes:
 
-- Tailwind is compiled locally (no CDN), fonts are inlined, nothing loads from the internet
-- `manifest.webmanifest` + icons make it installable to the home screen, fullscreen
-- `sw.js` caches everything on first visit so it runs in airplane mode
+- compiles only the Tailwind classes the game uses (the page loads Tailwind from a CDN while developing),
+- downloads the two Google Fonts once (cached in `fonts/`) and includes them as `css/fonts.css`,
+- writes `offline-files.json`, the list GameHub uses to save the whole game for offline play.
 
-## Build
-    cd build
-    npm install      # first time only
-    npm run build    # rebuild after every change to the game file
+The game has no service worker or manifest of its own: GameHub's cover installing and offline.
 
-Rebuilding changes the cache version, so installed phones pick up the update the next time they open the game with internet.
+```
+npm install      # first time only
+npm run build
+node check-levels.mjs   # levels are solvable and repeatable
+```
 
-## Put it on a phone
-Service workers need HTTPS. `docs/` is published by GitHub Pages
-(repo Settings → Pages → Deploy from a branch → `main` / `/docs`), so after a rebuild just
-commit and push `docs/`.
-
-Open the link on the phone once while online, then:
-- **iPhone (Safari):** Share → Add to Home Screen
-- **Android (Chrome):** ⋮ → Install app / Add to Home Screen
-
-From then on it launches from the home-screen icon and plays with no connection.
-Saves live on the phone (localStorage). Installed home-screen apps on iOS are exempt
-from Safari's 7-day storage cleanup.
-
-`make_icons.py` regenerates `icons/` (needs Pillow).
+Class names must be written out in full in the HTML or JS (never built from pieces like `'bg-' + color`), or they won't exist in the compiled CSS.

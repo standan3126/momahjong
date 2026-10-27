@@ -1,18 +1,18 @@
-// Builds an offline-installable PWA from ../imperial_sanctuary_mahjong.html into ../docs/ (served by GitHub Pages).
+// Builds Momahjong for GameHub from ../game/ into ../dist/ (published by GitHub Actions).
 // - Compiles only the Tailwind classes the game uses (replaces the Tailwind CDN script)
 // - Inlines the Google Fonts as base64 woff2 (downloaded once, cached in fonts/)
-// - Adds a web manifest, icons and a cache-first service worker
+// - Writes offline-files.json, so GameHub can save the whole game for offline play
+// GameHub's own service worker and manifest cover installing and offline; the game has neither.
 // Usage: cd build && npm install && npm run build
 import { execFileSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '..');
-const srcFile = path.join(root, 'imperial_sanctuary_mahjong.html');
-const dist = path.join(root, 'docs');
+const src = path.join(root, 'game');
+const dist = path.join(root, 'dist');
 const fontsDir = path.join(here, 'fonts');
 const FONTS_URL = 'https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap';
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36';
@@ -52,83 +52,39 @@ async function buildFontCss() {
 
 const fontCss = await buildFontCss();
 
-// 3. Rewrite the HTML head: drop CDN/remote fonts, inline CSS, add PWA tags
-let html = fs.readFileSync(srcFile, 'utf8');
+// 3. Rewrite the page head: drop the CDN and remote fonts, link the compiled CSS
+let html = fs.readFileSync(path.join(src, 'index.html'), 'utf8');
 html = html
   .replace(/\s*<script src="https:\/\/cdn\.tailwindcss\.com[^"]*"><\/script>/, '')
   .replace(/\s*<link[^>]*fonts\.googleapis\.com[^>]*>/g, '')
-  .replace(/\s*<link[^>]*fonts\.gstatic\.com[^>]*>/g, '');
-
-const headExtras = `
-    <link rel="manifest" href="manifest.webmanifest">
-    <link rel="icon" type="image/png" href="icons/icon-192.png">
-    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-    <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-title" content="Jade Mahjong">
-    <style>${fontCss}</style>
-    <style>${tailwindCss}</style>`;
-html = html.replace(/(<title>[^<]*<\/title>)/, `$1${headExtras}`);
-
-const swRegister = `
-    <script>
-    if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-        window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(e => console.warn('SW register failed:', e)));
-    }
-    </script>
-</body>`;
-html = html.replace(/<\/body>(?![\s\S]*<\/body>)/, swRegister);
+  .replace(/\s*<link[^>]*fonts\.gstatic\.com[^>]*>/g, '')
+  .replace('<link rel="stylesheet" href="css/game.css">',
+    '<link rel="stylesheet" href="css/fonts.css">\n    <link rel="stylesheet" href="css/tailwind.css">\n    <link rel="stylesheet" href="css/game.css">');
 
 // Guard: the built page must not load anything from the network
 const remote = [...html.matchAll(/<(?:script|link|img)[^>]+(?:src|href)="(https?:[^"]+)"/g)].map(m => m[1]);
 if (remote.length) throw new Error(`Remote resources left in build: ${remote.join(', ')}`);
 
-// 4. Write docs/
+// 4. Write dist/
 fs.rmSync(dist, { recursive: true, force: true });
-fs.mkdirSync(path.join(dist, 'icons'), { recursive: true });
+fs.cpSync(src, dist, { recursive: true });
 fs.writeFileSync(path.join(dist, 'index.html'), html);
+fs.writeFileSync(path.join(dist, 'css', 'fonts.css'), fontCss);
+fs.writeFileSync(path.join(dist, 'css', 'tailwind.css'), tailwindCss);
 fs.writeFileSync(path.join(dist, '.nojekyll'), ''); // serve files as-is on GitHub Pages
-for (const f of fs.readdirSync(path.join(here, 'icons'))) {
-  fs.copyFileSync(path.join(here, 'icons', f), path.join(dist, 'icons', f));
-}
 
-fs.writeFileSync(path.join(dist, 'manifest.webmanifest'), JSON.stringify({
-  name: 'Jade Sanctuary Mahjong',
-  short_name: 'Jade Mahjong',
-  start_url: './',
-  scope: './',
-  display: 'fullscreen',
-  orientation: 'portrait',
-  background_color: '#031710',
-  theme_color: '#063426',
-  icons: [
-    { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png' },
-    { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png' },
-    { src: 'icons/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
-  ],
-}, null, 2));
-
-// Cache name changes whenever the build output changes, so phones pick up updates
-const assets = ['./', 'index.html', 'manifest.webmanifest', ...fs.readdirSync(path.join(dist, 'icons')).map(f => `icons/${f}`)];
-const version = createHash('sha256').update(html).digest('hex').slice(0, 12);
-fs.writeFileSync(path.join(dist, 'sw.js'), `// Generated by build/build.mjs — cache-first so the game runs with no connection.
-const CACHE = 'jade-mahjong-${version}';
-const ASSETS = ${JSON.stringify(assets)};
-
-self.addEventListener('install', e => {
-    e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));
-});
-
-self.addEventListener('activate', e => {
-    e.waitUntil(caches.keys()
-        .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
-        .then(() => self.clients.claim()));
-});
-
-self.addEventListener('fetch', e => {
-    if (e.request.method !== 'GET') return;
-    e.respondWith(caches.match(e.request, { ignoreSearch: true }).then(hit => hit || fetch(e.request).catch(() => caches.match('index.html'))));
-});
-`);
+// Every file, relative to the game's address, for GameHub's warmOffline()
+const files = [];
+const walk = dir => {
+  for (const name of fs.readdirSync(dir)) {
+    const p = path.join(dir, name);
+    if (fs.statSync(p).isDirectory()) walk(p);
+    else files.push(path.relative(dist, p).split(path.sep).join('/'));
+  }
+};
+walk(dist);
+const list = files.filter(f => !f.startsWith('.')).map(f => (f === 'index.html' ? './' : f)).sort();
+fs.writeFileSync(path.join(dist, 'offline-files.json'), JSON.stringify(list));
 
 const kb = n => `${(n / 1024).toFixed(0)}KB`;
-console.log(`Built docs/ (index.html ${kb(Buffer.byteLength(html))}, tailwind ${kb(tailwindCss.length)}, fonts ${kb(fontCss.length)}, cache ${version})`);
+console.log(`Built dist/ (${list.length} files; tailwind ${kb(tailwindCss.length)}, fonts ${kb(fontCss.length)})`);

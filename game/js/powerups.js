@@ -10,23 +10,23 @@ function canUseTool(kind) {
     return true;
 }
 
-function outOf(label) {
-    spawnFloatingBanner(`No ${label} left! Win more in the Chance Chest!`, '#f87171');
+// Out of this power-up and not enough gold to buy one.
+function outOf(kind) {
+    spawnFloatingBanner(`A ${TOOL_NAMES[kind]} costs ${PRICES[kind]} 🪙. Finish levels and open chests for more gold!`, '#f87171');
     SoundFX.error();
     buzz(30);
 }
 
 function useHint() {
     if (!canUseTool('hint')) return;
-    if (state.inventory.hint <= 0) return outOf('Hints');
+    if (!canAfford('hint')) return outOf('hint');
     const active = state.tiles.filter(t => !t.removed);
     const pairs = findAvailablePairs(active.filter(t => isTileFree(t, active)));
     if (!pairs.length) {
         openModal('noMovesModal');
         return;
     }
-    state.inventory.hint--;
-    state.itemsUsed++;
+    spendTool('hint');
     SoundFX.hint();
     const [a, b] = pairs[Math.floor(Math.random() * pairs.length)];
     state.hintedUids = [a.uid, b.uid];
@@ -59,9 +59,9 @@ function reshuffleSolvable(active) {
 
 function useShuffle(freeRescue = false) {
     if (!canUseTool('shuffle')) return;
-    if (!freeRescue && state.inventory.shuffle <= 0) return outOf('Shuffles');
-    if (state.inventory.shuffle > 0) state.inventory.shuffle--;
-    state.itemsUsed++;
+    // A rescue shuffle (no moves left) is free and costs no stars.
+    if (!freeRescue && !canAfford('shuffle')) return outOf('shuffle');
+    if (!freeRescue) spendTool('shuffle');
     SoundFX.shuffle();
     buzz([10, 20, 10, 20, 10]);
     state.selectedUid = null;
@@ -82,14 +82,13 @@ function useUndo() {
         spawnFloatingBanner('Nothing to Undo yet!', '#94a3b8');
         return;
     }
-    if (state.inventory.undo <= 0) return outOf('Undo Scrolls');
+    if (!canAfford('undo')) return outOf('undo');
 
-    state.inventory.undo--;
-    state.itemsUsed++;
+    spendTool('undo');
     const [uidA, uidB] = state.undoStack.pop();
     state.tiles.forEach(t => { if (t.uid === uidA || t.uid === uidB) t.removed = false; });
     state.selectedUid = null;
-    state.combo = 0;
+    state.chimeStep = 0;
 
     SoundFX.undo();
     spawnFloatingBanner('📜 Last Pair Restored!', '#fde047');
@@ -106,8 +105,8 @@ function discover(item, text) {
 }
 
 function useDragonTorch() {
-    if (!canUseTool('torch')) return;
-    if (state.inventory.torch <= 0) return outOf('Dragon Torches');
+    if (!canUseTool('torch') || state.torchBurning) return;
+    if (!canAfford('torch')) return outOf('torch');
     const active = state.tiles.filter(t => !t.removed);
     if (active.length < 2) return;
 
@@ -124,13 +123,21 @@ function useDragonTorch() {
     }
     if (!chosen) return;
 
-    state.inventory.torch--;
-    state.itemsUsed++;
-    SoundFX.torch();
-    screenShake();
-    announce('🔥 FWOOSH!', '#fb923c');
-    discover('torch', '🔥 DISCOVERED: Dragon Torch burns away any pair — even buried ones!');
-    executeMatchPair(chosen[0], chosen[1], 'torch');
+    spendTool('torch');
+    updateAllHUD();
+    // Slow enough to follow: the chosen pair glows, the banner says what's happening,
+    // and only then does the fire take it.
+    state.torchBurning = true;
+    discover('torch', '🔥 DISCOVERED: the Dragon Torch!');
+    chosen.forEach(t => $(`tile-${t.uid}`)?.classList.add('torch-target'));
+    spawnFloatingBanner('🔥 The Dragon Torch burns away a matching pair, even one that is buried!', '#fdba74');
+    setTimeout(() => {
+        state.torchBurning = false;
+        if (state.levelDone || chosen.some(t => t.removed)) return;
+        SoundFX.torch();
+        announce('🔥 FWOOSH!', '#fb923c');
+        executeMatchPair(chosen[0], chosen[1], 'torch');
+    }, 1400);
 }
 
 function useEagleEye() {
@@ -139,10 +146,9 @@ function useEagleEye() {
         spawnFloatingBanner('🦅 Eagle Eye is already active this level!', '#38bdf8');
         return;
     }
-    if (state.inventory.eagle <= 0) return outOf('Eagle Eyes');
+    if (!canAfford('eagle')) return outOf('eagle');
 
-    state.inventory.eagle--;
-    state.itemsUsed++;
+    spendTool('eagle');
     state.eagleEyeActive = true;
     SoundFX.eagle();
 

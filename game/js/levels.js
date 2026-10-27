@@ -1,25 +1,20 @@
 /* ============================================================================
    6. DIFFICULTY CURVE & GUARANTEED-SOLVABLE BOARD GENERATOR
    ============================================================================ */
-const MAX_SPINS = 3;
-const TRAINING_LEVELS = 20;
+// 10 hand-built lessons, then endless levels (a boss every 10th from level 20).
+const TRAINING_LEVELS = 10;
 const MODIFIERS = [
-    { id: 'golden', name: '🌟 Golden Rain', desc: 'Extra Golden pairs this level!' },
-    { id: 'misty', name: '🌫️ Misty Peaks', desc: 'Extra Mystery tiles hide in the mist!' },
-    { id: 'speed', name: '⚡ Speed Blessing', desc: 'Combo window stretched to 8 seconds!' }
+    { id: 'golden', name: '🌟 Golden Rain', desc: 'Extra Golden pairs this level: more bonus gold!' },
+    { id: 'misty', name: '🌫️ Misty Peaks', desc: 'Extra Mystery tiles hide in the mist!' }
 ];
 const easeInOut = t => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
 
 function getLevelConfig(level) {
-    if (level <= 12) {
+    if (level <= TRAINING_LEVELS) {
         return { kind: 'tutorial', tut: TUTORIAL[level], variety: 6, d: 0 };
     }
-    if (level <= TRAINING_LEVELS) {
-        const k = level - 12; // trial 1..8: 28 → 56 tiles
-        return { kind: 'training', pairs: 12 + k * 2, layers: k <= 2 ? 2 : 3, variety: 7 + k, mystery: k >= 4 ? (k >= 7 ? 2 : 1) : 0, golden: 1, d: 0.1 + k * 0.03 };
-    }
     // Endless: ramps for ~130 levels, then holds at max difficulty forever
-    const e = easeInOut(Math.min(1, (level - 21) / 130));
+    const e = easeInOut(Math.min(1, (level - TRAINING_LEVELS - 1) / 130));
     const cfg = {
         kind: 'endless',
         pairs: Math.round(26 + e * 32),
@@ -31,14 +26,14 @@ function getLevelConfig(level) {
         modifier: null,
         isBoss: false
     };
-    if (level >= 30 && level % 10 === 0) {
+    if (isBossLevel(level)) {
         cfg.isBoss = true;
         cfg.pairs = Math.min(64, cfg.pairs + 6);
         cfg.golden++;
         cfg.layers = Math.min(5, cfg.layers + 1);
-    } else if (level >= 25) {
+    } else if (level >= TRAINING_LEVELS + 5) {
         const r = mulberry32(hashSeed(level, 4242))();
-        if (r < 0.45) cfg.modifier = MODIFIERS[Math.floor(r / 0.15)];
+        if (r < 0.3) cfg.modifier = MODIFIERS[Math.floor(r / 0.15)];
     }
     if (cfg.modifier && cfg.modifier.id === 'golden') cfg.golden += 2;
     if (cfg.modifier && cfg.modifier.id === 'misty') cfg.mystery += 4;

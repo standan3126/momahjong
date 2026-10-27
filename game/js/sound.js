@@ -90,14 +90,15 @@ const SoundFX = {
         if (!this.ready()) return;
         this.tone(300, 0.06, { type: 'triangle', vol: 0.16, slide: 120 });
     },
-    match(combo = 1) {
+    match(step = 0) {
         if (!this.ready()) return;
-        // Pentatonic chimes that climb with the combo
-        const penta = [523.25, 587.33, 659.25, 783.99, 880.00, 1046.50, 1174.66, 1318.51, 1567.98, 1760.00];
-        const i = Math.min(combo - 1, penta.length - 3);
+        // Quick matches walk this little pentatonic tune up and back down, then around
+        // again, so a long run stays gentle instead of climbing out of reach.
+        const penta = [523.25, 587.33, 659.25, 783.99, 880.00, 1046.50];
+        const TUNE = [0, 1, 2, 3, 4, 5, 4, 3, 2, 1];
+        const i = TUNE[step % TUNE.length];
         this.tone(penta[i], 0.38, { vol: 0.2 });
-        this.tone(penta[i + 1], 0.4, { vol: 0.18, when: 0.07 });
-        if (combo >= 3) this.tone(penta[i + 2] * 2, 0.3, { type: 'triangle', vol: 0.07, when: 0.13 });
+        this.tone(penta[i] * 1.5, 0.4, { vol: 0.07, when: 0.06 });
         this.noise(0.05, { vol: 0.05, freq: 5000, q: 3 });
     },
     golden() {
@@ -168,11 +169,6 @@ const SoundFX = {
         if (!this.ready()) return;
         this.tone(880 * (1 + i * 0.26), 0.3, { type: 'triangle', vol: 0.15 });
         this.tone(1760 * (1 + i * 0.26), 0.2, { vol: 0.05, when: 0.03 });
-    },
-    comboTier(tier) {
-        if (!this.ready()) return;
-        const root = 392 * Math.pow(1.122, tier);
-        [1, 1.25, 1.5, 2].forEach((m, i) => this.tone(root * m, 0.45, { type: 'triangle', vol: 0.08, when: i * 0.03 }));
     },
     prize() {
         if (!this.ready()) return;

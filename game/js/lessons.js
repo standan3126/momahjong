@@ -1,5 +1,5 @@
 /* ============================================================================
-   5. SANCTUARY TRAINING — 12 HAND-BUILT LESSONS (+ 8 TRIALS GENERATED BELOW)
+   5. SANCTUARY TRAINING — 10 HAND-BUILT LESSONS
       Step types: info (Got it), match (forced pair), tapBlocked (forced tap on a
       blocked tile), button (forced power-up / chest action), free (play freely;
       advances when the level is cleared).
@@ -17,9 +17,6 @@ const TUTORIAL = {
             { type: 'match', uids: [0, 5], title: 'Tap & Match', text: 'Tap the Panda 🐼, then tap its twin to match them!' },
             { type: 'match', uids: [3, 2], title: 'Nice one! ✨', text: 'Now match the two Lucky Coins.' },
             { type: 'free', text: 'Finish the last pair on your own! 💪' },
-            { type: 'info', target: '#wheelWrap', title: 'Imperial Chance Chest 🎁', text: 'Every cleared level earns a spin on the treasure wheel. Prizes are power-ups for your item dock.' },
-            { type: 'button', action: 'spin', target: '#spinChestBtn', title: 'Spin it!', text: 'Tap SPIN!' },
-            { type: 'info', target: '#prizeResultBox', title: 'Treasure! 🎉', text: 'Your prize flies straight into your item dock. You can earn up to 3 spins per level.' },
             { type: 'button', action: 'next', target: '#nextLevelBtn', title: 'Onward!', text: 'Tap NEXT LEVEL to continue.' }
         ]
     },
@@ -53,33 +50,24 @@ const TUTORIAL = {
         types: ['t1', 't2', 't2', 't1', 'b5', 'b2', 'b2', 'b5'],
         steps: [
             { type: 'info', target: '#levelBox', title: 'Level & Board 🀄', text: 'Your level and the board name. 🀄 = tiles left. ✅ = free pairs you can match right now.' },
-            { type: 'info', target: '#rankBox', title: 'Score & Rank 🏆', text: 'Your score and Sanctuary Rank. Tap it anytime to open the guide.' },
-            { type: 'info', target: '#spinMeter', title: 'Chest Spins 🎁', text: "Spins you've earned for this level's chest (max 3)." },
-            { type: 'info', target: '#dock', title: 'Item Dock 🧰', text: 'Your power-ups live here. The badge shows how many you own.' },
+            { type: 'info', target: '#rankBox', title: 'Stars & Rank ⭐', text: 'Every level gives 1–3 stars: more for using fewer power-ups. Stars raise your Sanctuary Rank. Tap here for the guide.' },
+            { type: 'info', target: '#goldBox', title: 'Gold 🪙', text: 'Gold buys power-ups once yours run out. Earn it by finishing levels, from treasure chests and little games.' },
+            { type: 'info', target: '#dock', title: 'Item Dock 🧰', text: 'Your power-ups live here. The badge shows how many you own, or their price in gold when you have none.' },
             { type: 'info', target: '#settingsBtn', title: 'Settings ⚙️', text: 'Sound, music, vibration and your save slots.' },
             { type: 'free', text: 'Now clear the board!' }
         ]
     },
     5: {
-        title: 'Combo Rush',
-        slots: [...rowOf(0, 6), ...rowOf(2, 6)],
-        types: ['w4', 'a3', 't2', 't2', 'a3', 'w4', 'b7', 'w8', 't6', 't6', 'w8', 'b7'],
-        steps: [
-            { type: 'info', target: '#hud', title: 'Combo Time! 🔥', text: 'Match pairs within 5 seconds of each other to build a COMBO multiplier. A timer bar appears up here!' },
-            { type: 'free', text: 'Go go go! Chain them FAST! ⚡' }
-        ]
-    },
-    6: {
         title: 'Hints',
         slots: [...rowOf(0, 4), ...rowOf(2, 4), ...rowOf(4, 4), S(1, 1, 1), S(5, 1, 1)],
         steps: [
             { type: 'info', title: 'Stuck? Get a Hint 💡', text: "Can't spot a match? The Hint bulb lights up a free pair for you." },
             { type: 'button', action: 'hint', target: '#btnHint', give: 'hint', title: 'Use a Hint', text: 'Tap the 💡 Hint button.' },
             { type: 'match', hinted: true, title: 'There it is!', text: 'Match the glowing pair.' },
-            { type: 'free', text: 'Clear the rest. Hints are limited — use them wisely!' }
+            { type: 'free', text: 'Clear the rest. Power-ups cost gold once yours run out, so use them wisely!' }
         ]
     },
-    7: {
+    6: {
         title: 'Undo',
         slots: [...rowOf(0, 4), ...rowOf(2, 2), ...rowOf(4, 4)],
         types: ['w1', 'a1', 'a1', 'w1', 't3', 't3', 'b1', 'b9', 'b9', 'b1'],
@@ -91,18 +79,17 @@ const TUTORIAL = {
             { type: 'free', text: 'Clear the board your way!' }
         ]
     },
-    8: {
+    7: {
         title: 'Golden Glory',
         slots: [...rowOf(0, 4), ...rowOf(2, 4), ...rowOf(4, 4), S(1, 1, 1), S(5, 1, 1)],
         golden: 12,
         steps: [
-            { type: 'info', target: 'tile:12', title: 'Golden Tiles 🌟', text: 'Golden pairs score DOUBLE points and add +1 chest spin — up to 3 spins per level!' },
+            { type: 'info', target: 'tile:12', title: 'Golden Tiles 🌟', text: 'Golden pairs give you bonus gold 🪙 when you match them!' },
             { type: 'free', text: 'Find the golden twin and match it! 🌟' },
-            { type: 'info', target: '#spinsLeftBanner', title: 'Bonus Spins! 🎰', text: 'Extra spins from your golden pair. More spins = more treasure!' },
             { type: 'free' }
         ]
     },
-    9: {
+    8: {
         title: 'Shuffle Wind',
         slots: [...rowOf(0, 2), ...rowOf(2, 4), ...rowOf(4, 4)],
         types: ['w7', 'w7', 'a4', 't8', 'a4', 't8', 'b4', 'b6', 'b4', 'b6'],
@@ -114,7 +101,7 @@ const TUTORIAL = {
             { type: 'free', text: 'Saved! Finish it off.' }
         ]
     },
-    10: {
+    9: {
         title: 'Auto-Complete',
         slots: [...rowOf(0, 6), ...rowOf(2, 6), S(3, 1, 1), S(7, 1, 1)],
         types: ['a1', 'a5', 'a9', 'a9', 'a5', 'a1', 't1', 't5', 't9', 't9', 't5', 't1', 'w2', 'w2'],
@@ -125,7 +112,7 @@ const TUTORIAL = {
             { type: 'free' }
         ]
     },
-    11: {
+    10: {
         title: 'Mystery Tiles',
         slots: [...rowOf(0, 3), ...rowOf(2, 3), S(1, 1, 1), S(3, 1, 1), ...rowOf(4, 4)],
         mystery: [1],
@@ -134,15 +121,6 @@ const TUTORIAL = {
             { type: 'tapBlocked', uid: 1, title: 'Sneak a peek', text: 'Tap the mystery tile to peek underneath!' },
             { type: 'info', title: 'Peeked! 👀', text: "It reveals for good once it's free. Rumour says a certain relic can unmask them all…" },
             { type: 'free', text: 'Clear the board!' }
-        ]
-    },
-    12: {
-        title: 'Sanctuary Rank',
-        slots: [...rowOf(0, 4), ...rowOf(2, 4), ...rowOf(4, 4), S(1, 1, 1), S(3, 1, 1), S(1, 3, 1), S(3, 3, 1)],
-        steps: [
-            { type: 'info', target: '#rankBox', title: 'Sanctuary Rank 🏆', text: 'Win 🎋 Golden Bamboo Charms from the chest to rank up. Higher ranks multiply your score and can grant free Divine Blessing matches!' },
-            { type: 'info', title: 'Training Trials ahead ⚔️', text: 'Next come 8 Trials — no more hand-holding. Not every secret has been revealed… experiment! 😉' },
-            { type: 'free', text: "Show me what you've learned!" }
         ]
     }
 };

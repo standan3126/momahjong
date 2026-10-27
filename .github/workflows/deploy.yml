@@ -1,0 +1,47 @@
+# Builds Momahjong and publishes it to https://standan3126.github.io/momahjong/ on every
+# push to main. The level checks must pass first.
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+        working-directory: build
+      - name: Check every script parses
+        run: for f in game/js/*.js; do node --check "$f"; done
+      - name: Check generated levels are solvable
+        run: node build/check-levels.mjs
+      - run: npm run build
+        working-directory: build
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

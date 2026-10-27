@@ -8,3 +8,4 @@ TXT.txt
 private/
 *.local*
 .env*
+dist/

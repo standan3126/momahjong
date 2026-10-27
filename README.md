@@ -1,23 +1,19 @@
 # Momahjong
 
-**Momahjong** (Jade Sanctuary Mahjong): a calm mahjong solitaire game for phones (iPhone & Android), made to be played with a finger or stylus.
+**Momahjong** (Jade Sanctuary Mahjong): a calm mahjong solitaire game for phones (iPhone & Android), made to be played with a finger or stylus. Part of [GameHub](https://standan3126.github.io/).
 
 ## Play
-Open the GitHub Pages link on the phone, then add it to the home screen:
-- **iPhone (Safari):** Share → Add to Home Screen
-- **Android (Chrome):** ⋮ → Install app
+Open GameHub (`https://standan3126.github.io/`) on a phone, add it to the home screen, and tap Momahjong. It works offline after the first visit. Saves stay on the phone (3 save slots); Settings → *Move your progress* carries them to another phone.
 
-After the first visit it works offline. Saves stay on the phone (3 save slots).
-
-## Features
-- 20-level guided training, then endless levels that ramp up to a max difficulty (generated from the level number, so they're infinite without growing the file)
-- 3D stacked tiles with colour-coded layers, combos, golden & mystery tiles, boss boards
-- Imperial Chance Chest (up to 3 spins per level) with power-ups: Hint, Shuffle, Undo, Dragon Torch, Eagle Eye
-- Synthesized sound effects and optional zen music; no downloads needed
+## How it plays
+- 10 short lessons, then endless levels that ramp up to a maximum difficulty (generated from the level number, so they're infinite without growing the game).
+- Every level gives up to three stars (fewer power-ups, more stars) and some gold. Stars raise your Sanctuary Rank and open the boss level every 10th level.
+- Power-ups (Undo, Hint, Shuffle, Dragon Torch, Eagle Eye) cost gold once your own run out.
+- A treasure chest every 5th level, little games between levels (Memory Pairs, Odd Tile Out, Suit Sorting), and a map of the winding Bamboo Path where any won level can be replayed.
 
 ## Files
-- `imperial_sanctuary_mahjong.html`: the game source (edit this)
-- `build/`: turns the source into the offline, installable app (`cd build && npm install && npm run build`)
-- `docs/`: the built app, served by GitHub Pages
+- `game/`: the game itself. `index.html`, `css/game.css`, and `js/`, one file per section, loaded in order and sharing one global scope.
+- `build/`: turns `game/` into the published copy in `dist/` (`cd build && npm install && npm run build`). `node build/check-levels.mjs` checks that generated levels are solvable.
+- Every push to `main` checks the levels, builds, and publishes through GitHub Actions.
 
-Add `?debug=1` to the URL to check 500 levels for solvability.
+For local testing, serve `game/` (`python3 -m http.server`); the GameHub-only extras (moving progress, the toolbox) need GameHub's `/shared/` folder next to it.

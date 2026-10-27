@@ -204,7 +204,7 @@ const Tutorial = {
         $('coachTitle').textContent = s.title || '';
         $('coachText').textContent = s.text || '';
         $('coachNextBtn').style.display = s.type === 'info' ? '' : 'none';
-        $('coachSkip').style.display = this.level <= 12 ? '' : 'none';
+        $('coachSkip').style.display = this.level <= TRAINING_LEVELS ? '' : 'none';
         bubble.classList.remove('passive');
         bubble.style.display = 'block';
         const bh = bubble.offsetHeight, bw = bubble.offsetWidth;
@@ -239,11 +239,12 @@ function skipTraining() {
         title: 'Skip Training?',
         text: state.returnLevel
             ? `You'll jump straight back to Level ${state.returnLevel}.`
-            : 'You can replay it anytime from the Guide. Skipping takes you straight to the Endless Sanctuary (Level 21).',
+            : `You can replay it anytime from the Guide. You'll get the same starting gold and power-ups as finishing it, and go straight to Level ${TRAINING_LEVELS + 1}.`,
         buttons: [
             {
                 label: 'Yes, skip it', style: 'primary', onClick: () => {
                     const target = state.returnLevel || TRAINING_LEVELS + 1;
+                    giveStarterPack();
                     state.tutorialDone = true;
                     state.returnLevel = null;
                     Tutorial.clear();
@@ -261,7 +262,7 @@ function replayTraining() {
         icon: '🎓',
         title: 'Replay Training?',
         text: state.tutorialDone
-            ? `Play the 20 training levels again. Afterwards you'll return to Level ${state.level}.`
+            ? `Play the ${TRAINING_LEVELS} training levels again. Afterwards you'll return to Level ${state.level}.`
             : 'Restart the training from Level 1?',
         buttons: [
             {
@@ -274,4 +275,12 @@ function replayTraining() {
             { label: 'Cancel', style: 'ghost' }
         ]
     });
+}
+
+// Finishing or skipping training ends the same way: at least the starter gold and
+// power-ups. Replaying training never hands them out twice.
+function giveStarterPack() {
+    if (state.tutorialDone) return;
+    state.gold = Math.max(state.gold, STARTER_PACK.gold);
+    for (const [k, n] of Object.entries(STARTER_PACK.inventory)) state.inventory[k] = Math.max(state.inventory[k], n);
 }

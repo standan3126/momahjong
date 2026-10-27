@@ -49,7 +49,7 @@ function refreshBoardInteractivity() {
     const anyStacked = active.some(t => hasTileAbove(t, active));
     const autoBtn = $('autoCompleteBtn');
     // (taught in lesson 10, so earlier lessons can't skip their own forced moves)
-    const showAuto = state.level >= 10 && !anyStacked && active.length >= 4 && active.length <= 16 && !state.autoCompleting && !state.levelDone;
+    const showAuto = state.level >= 9 && !anyStacked && active.length >= 4 && active.length <= 16 && !state.autoCompleting && !state.levelDone;
     autoBtn.classList.toggle('hidden', !showAuto);
 
     if (active.length === 0 && !state.levelDone) {
@@ -133,14 +133,8 @@ function onTileTapped(uid) {
     Tutorial.render();
 }
 
-const COMBO_TIERS = [
-    null, null,
-    { text: 'NICE!', color: '#a7f3d0' },
-    { text: 'GREAT!', color: '#fde68a' },
-    { text: 'AMAZING!', color: '#fdba74' },
-    { text: 'INCREDIBLE!', color: '#f9a8d4' },
-    { text: 'LEGENDARY!', color: '#c4b5fd' }
-];
+// Matches within this long of each other walk the chime along its tune.
+const CHIME_WINDOW_MS = 2000;
 
 function executeMatchPair(tileA, tileB, source = 'player') {
     state.selectedUid = null;
@@ -148,40 +142,26 @@ function executeMatchPair(tileA, tileB, source = 'player') {
     tileB.removed = true;
     state.undoStack.push([tileA.uid, tileB.uid]);
 
+    // Quick matches walk the chime up its tune and back down; a pause starts it over.
     const now = Date.now();
-    state.combo = now < state.comboDeadline ? state.combo + 1 : 1;
-    state.comboDeadline = now + state.comboWindow;
-    state.bestCombo = Math.max(state.bestCombo, state.combo);
+    state.chimeStep = now - state.lastMatchAt < CHIME_WINDOW_MS ? state.chimeStep + 1 : 0;
+    state.lastMatchAt = now;
 
     const golden = tileA.isGolden || tileB.isGolden;
     if (golden) SoundFX.golden();
-    else SoundFX.match(state.combo);
+    else SoundFX.match(state.chimeStep);
 
     const rank = getCurrentRank();
-    const pointsEarned = Math.round(50 * state.combo * rank.mult * (golden ? 2 : 1));
-    state.score += pointsEarned;
-
     if (golden) {
-        if (state.chestSpinsEarned < MAX_SPINS) {
-            state.chestSpinsEarned++;
-            spawnFloatingBanner(`🌟 GOLDEN PAIR! +1 CHEST SPIN (${state.chestSpinsEarned}/${MAX_SPINS})`, '#fde047');
-        } else {
-            spawnFloatingBanner('🌟 GOLDEN PAIR! Spins maxed (3/3) — double points!', '#fde047');
-        }
+        const bonus = isTrainingLevel(state.level) ? 0 : GOLD_PER_GOLDEN_PAIR;
+        if (bonus) addGold(bonus);
+        spawnFloatingBanner(bonus ? `🌟 GOLDEN PAIR! +${bonus} 🪙` : '🌟 GOLDEN PAIR!', '#fde047');
         buzz([15, 30, 15]);
     } else if (source === 'blessing') {
         spawnFloatingBanner('🐉 DIVINE BLESSING! FREE MATCH!', '#34d399');
     }
 
-    if (source === 'player') {
-        buzz(12);
-        if (state.combo >= 2) {
-            const tier = COMBO_TIERS[Math.min(state.combo, COMBO_TIERS.length - 1)];
-            announce(tier.text, tier.color, `COMBO x${state.combo}`);
-            if (state.combo >= 3) SoundFX.comboTier(state.combo);
-        }
-        if (state.combo >= 4) screenShake();
-    }
+    if (source === 'player') buzz(12);
 
     // Particles + flying points, then the vanish animation
     const colors = golden ? ['#fde047', '#fbbf24', '#ffffff', '#f59e0b']
@@ -193,8 +173,8 @@ function executeMatchPair(tileA, tileB, source = 'player') {
         const r = el.getBoundingClientRect();
         const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
         FX.burst(cx, cy, colors, golden ? 26 : 14, { size: golden ? 5 : 4 });
-        if (i === 0) popPoints(cx, r.top, `+${pointsEarned}`, golden ? '#fde047' : '#ffffff');
-        el.classList.remove('selected', 'hinted', 'coach-target');
+        if (i === 0 && golden && !isTrainingLevel(state.level)) popPoints(cx, r.top, `+${GOLD_PER_GOLDEN_PAIR} 🪙`, '#fde047');
+        el.classList.remove('selected', 'hinted', 'coach-target', 'torch-target');
         el.classList.add('matching');
         setTimeout(() => el.remove(), 340);
     });
@@ -267,16 +247,3 @@ function screenShake() {
     vp.classList.add('screen-shake');
     buzz([20, 30, 20]);
 }
-
-// Combo timer bar
-setInterval(() => {
-    const container = $('comboContainer');
-    const now = Date.now();
-    if (state.combo >= 2 && now < state.comboDeadline) {
-        container.style.opacity = '1';
-        $('comboText').textContent = `COMBO x${state.combo}`;
-        $('comboTimerBar').style.width = `${Math.max(0, ((state.comboDeadline - now) / state.comboWindow) * 100)}%`;
-    } else {
-        container.style.opacity = '0';
-    }
-}, 100);

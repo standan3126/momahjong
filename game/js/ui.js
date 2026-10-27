@@ -12,19 +12,21 @@ function bumpEl(el) {
 }
 
 function updateAllHUD() {
-    $('scoreDisplay').textContent = state.score.toLocaleString();
+    $('starTotal').textContent = `⭐ ${totalStars()}`;
     $('rankTitle').textContent = getCurrentRank().name;
     $('rankProgressBar').style.width = `${getNextRankProgress()}%`;
-    $('chestBonusCount').textContent = `${state.chestSpinsEarned}/${MAX_SPINS}`;
+    $('goldCount').textContent = state.gold.toLocaleString();
     for (const [key, [badgeId, btnId]] of Object.entries(DOCK)) {
         const n = state.inventory[key];
-        $(badgeId).textContent = n;
-        $(btnId).classList.toggle('opacity-60', n <= 0);
+        // When you have none, the badge shows the price: tapping buys one with gold.
+        $(badgeId).textContent = n > 0 ? n : `🪙${PRICES[key]}`;
+        $(badgeId).classList.toggle('price', n <= 0);
+        $(btnId).classList.toggle('opacity-60', !canAfford(key));
         if (prevInventory[key] != null && n > prevInventory[key]) bumpEl($(btnId));
         prevInventory[key] = n;
     }
-    $('newTorch').classList.toggle('hidden', state.seen.torch || state.level < 13 || state.inventory.torch <= 0);
-    $('newEagle').classList.toggle('hidden', state.seen.eagle || state.level < 13 || state.inventory.eagle <= 0);
+    $('newTorch').classList.toggle('hidden', state.seen.torch || state.level <= TRAINING_LEVELS || state.inventory.torch <= 0);
+    $('newEagle').classList.toggle('hidden', state.seen.eagle || state.level <= TRAINING_LEVELS || state.inventory.eagle <= 0);
 }
 
 function syncSettingsUI() {
@@ -35,6 +37,10 @@ function syncSettingsUI() {
     $('toggleAutoNext').checked = settings.autoNext;
     $('volumeSlider').value = Math.round(settings.volume * 100);
     $('volumeLabel').textContent = `${Math.round(settings.volume * 100)}%`;
+    $('breakEvery').value = String(settings.breakEvery);
+    $('breakMemory').checked = settings.breakKinds.includes('memory');
+    $('breakOdd').checked = settings.breakKinds.includes('odd');
+    $('breakSort').checked = settings.breakKinds.includes('sort');
     const inTraining = state.level <= TRAINING_LEVELS && (!state.tutorialDone || state.returnLevel);
     $('skipTrainingBtn').classList.toggle('hidden', !inTraining);
 }
@@ -46,6 +52,8 @@ function updateSettings() {
     settings.highlightFree = $('toggleHighlightFree').checked;
     settings.autoNext = $('toggleAutoNext').checked;
     settings.volume = Number($('volumeSlider').value) / 100;
+    settings.breakEvery = Number($('breakEvery').value);
+    settings.breakKinds = [['memory', 'breakMemory'], ['odd', 'breakOdd'], ['sort', 'breakSort']].filter(([, id]) => $(id).checked).map(([k]) => k);
     $('volumeLabel').textContent = `${Math.round(settings.volume * 100)}%`;
     SoundFX.init();
     SoundFX.applyVolumes();
@@ -111,6 +119,8 @@ function timeAgo(ts) {
     return `${Math.floor(s / 86400)} days ago`;
 }
 
+const slotStars = d => Object.values(upgradeSave(d).stars).reduce((a, b) => a + b, 0);
+
 function renderSlots() {
     const list = $('slotList');
     let html = '';
@@ -123,7 +133,7 @@ function renderSlots() {
                 <button onclick="slotContinue(${n})" class="flex-1 min-w-0 text-left active:scale-95 transition">
                     <div class="text-[10px] font-extrabold tracking-widest text-emerald-300/80 uppercase">Slot ${n} · ${timeAgo(d.lastPlayed || 0)}</div>
                     <div class="font-serif-asian font-extrabold text-amber-300 text-lg leading-tight truncate">Level ${d.level}${training ? ' · 🎓 Training' : ''}</div>
-                    <div class="text-xs text-white font-bold truncate">⭐ ${(d.score || 0).toLocaleString()} · ${getCurrentRank(d.charms || 0).name}</div>
+                    <div class="text-xs text-white font-bold truncate">⭐ ${slotStars(d)} · 🪙 ${upgradeSave(d).gold} · ${getCurrentRank(slotStars(d)).name}</div>
                 </button>
                 <div class="flex flex-col gap-1.5 shrink-0">
                     <button onclick="slotContinue(${n})" class="px-3 py-2 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 text-emerald-950 font-extrabold text-xs active:scale-95 transition">▶ Play</button>
@@ -169,10 +179,10 @@ function slotNew(n) {
     showMessage({
         icon: '🐼',
         title: 'New Adventure',
-        text: 'Start with the 20-level Sanctuary Training? It teaches the controls, the screen and the power-ups step by step.',
+        text: `Start with the ${TRAINING_LEVELS}-level Sanctuary Training? It teaches the controls, the screen and the power-ups step by step. Skipping it gives you the same starting gold and power-ups.`,
         buttons: [
             { label: '🎓 Start Training (recommended)', style: 'primary', onClick: () => beginNewGame(n, false) },
-            { label: '⚡ Skip to Endless (Level 21)', style: 'secondary', onClick: () => beginNewGame(n, true) },
+            { label: `⚡ Skip to Level ${TRAINING_LEVELS + 1}`, style: 'secondary', onClick: () => beginNewGame(n, true) },
             { label: 'Cancel', style: 'ghost' }
         ]
     });
@@ -183,6 +193,7 @@ function beginNewGame(n, skipTraining) {
     state = freshState();
     prevInventory = {};
     if (skipTraining) {
+        giveStarterPack();
         state.tutorialDone = true;
         state.level = TRAINING_LEVELS + 1;
     }
@@ -191,14 +202,18 @@ function beginNewGame(n, skipTraining) {
 }
 
 function slotContinue(n) {
-    const d = storageGet(SLOT_KEY(n));
-    if (!d) return slotNew(n);
+    const saved = storageGet(SLOT_KEY(n));
+    if (!saved) return slotNew(n);
+    const d = upgradeSave(saved);
     currentSlot = n;
     state = freshState();
     prevInventory = {};
     state.level = Math.max(1, d.level || 1);
     state.score = d.score || 0;
     state.charms = d.charms || 0;
+    state.gold = d.gold || 0;
+    state.stars = d.stars || {};
+    state.breakCount = d.breakCount || 0;
     state.inventory = { ...newInventory(), ...(d.inventory || {}) };
     state.tutorialDone = !!d.tutorialDone || state.level > TRAINING_LEVELS;
     state.returnLevel = state.level > TRAINING_LEVELS ? null : (d.returnLevel || null);
@@ -208,8 +223,8 @@ function slotContinue(n) {
     state.bestCombo = d.bestCombo || 0;
     state.levelsCleared = d.levelsCleared || 0;
     hideTitle();
-    if (d.board && d.board.level === state.level && state.level > 12) restoreBoard(d.board);
-    else startLevel(state.level);
+    if (d.board && d.board.level === state.level && state.level > TRAINING_LEVELS) restoreBoard(d.board);
+    else playLevel(state.level);
 }
 
 function slotDelete(n) {

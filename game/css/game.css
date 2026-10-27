@@ -462,3 +462,71 @@ button { touch-action: manipulation; }
 ::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); border-radius: 8px; }
 ::-webkit-scrollbar-thumb { background: rgba(245, 158, 11, 0.5); border-radius: 8px; }
 input[type=range] { accent-color: #fbbf24; }
+
+/* The Dragon Torch's chosen pair glows before it burns, so you can see what it did */
+.torch-target {
+    animation: torchGlow 0.45s ease-in-out infinite alternate;
+    z-index: 999 !important;
+}
+@keyframes torchGlow {
+    from { filter: drop-shadow(0 0 4px #fb923c) brightness(1.05); }
+    to { filter: drop-shadow(0 0 16px #ef4444) brightness(1.3); }
+}
+
+/* An item badge showing its gold price (you have none left) */
+.price {
+    font-size: 10px !important;
+    background: #fde68a !important;
+    padding: 0 4px !important;
+}
+
+/* The map's current level gently pulses */
+.map-node { cursor: pointer; }
+.map-ring { animation: mapPulse 1.6s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+@keyframes mapPulse {
+    0%, 100% { opacity: 0.35; transform: scale(0.94); }
+    50% { opacity: 1; transform: scale(1.06); }
+}
+@media (prefers-reduced-motion: reduce) { .map-ring { animation: none; } }
+
+/* Little games: small ivory tiles */
+.mini-tile {
+    aspect-ratio: 64 / 86;
+    border-radius: 10px;
+    background: linear-gradient(160deg, #fffdf5, #f1e7cf);
+    box-shadow: 0 3px 0 #b8a37a, 0 6px 10px rgba(0, 0, 0, 0.35);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.mini-face { width: 82%; height: 82%; display: flex; align-items: center; justify-content: center; }
+.mini-face svg { width: 100%; height: 100%; }
+.memory-card { position: relative; aspect-ratio: 64 / 86; }
+.memory-card .memory-back,
+.memory-card .memory-front { position: absolute; inset: 0; transition: transform 0.3s ease, opacity 0.3s ease; backface-visibility: hidden; }
+.memory-back {
+    border-radius: 10px;
+    background: linear-gradient(160deg, #059669, #064e3b);
+    border: 2px solid rgba(251, 191, 36, 0.6);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 26px;
+    box-shadow: 0 3px 0 #022c22, 0 6px 10px rgba(0, 0, 0, 0.35);
+}
+.memory-card .memory-front { transform: rotateY(180deg); opacity: 0; }
+.memory-card.up .memory-back { transform: rotateY(180deg); opacity: 0; }
+.memory-card.up .memory-front { transform: rotateY(0); opacity: 1; }
+.memory-card.matched .memory-front { box-shadow: 0 0 0 3px #fbbf24, 0 6px 10px rgba(0, 0, 0, 0.35); }
+.odd-cell.found .mini-tile { box-shadow: 0 0 0 3px #34d399, 0 6px 14px rgba(52, 211, 153, 0.6); }
+.sort-tile.picked .mini-tile { transform: translateY(-6px); box-shadow: 0 0 0 3px #fbbf24, 0 10px 16px rgba(0, 0, 0, 0.4); }
+.sort-tile.done { visibility: hidden; }
+.sort-bowl {
+    border-radius: 999px 999px 40px 40px / 40px 40px 999px 999px;
+    background: radial-gradient(ellipse at top, #1f5138, #0b2a1d);
+    border: 2px solid rgba(251, 191, 36, 0.5);
+    padding: 12px 4px 10px;
+}
+.mini-wiggle { animation: miniWiggle 0.35s ease; }
+@keyframes miniWiggle {
+    25% { transform: translateX(-5px); }
+    75% { transform: translateX(5px); }
+}

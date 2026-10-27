@@ -10,14 +10,13 @@ function resetLevelRuntime() {
     state.selectedUid = null;
     state.hintedUids = null;
     state.undoStack = [];
-    state.combo = 0;
-    state.comboDeadline = 0;
-    state.comboWindow = 5500;
+    state.chimeStep = 0;
+    state.lastMatchAt = 0;
     state.eagleEyeActive = false;
-    state.chestSpinsEarned = 1;
     state.autoCompleting = false;
     state.levelDone = false;
     state.itemsUsed = 0;
+    state.toolsUsed = noToolsUsed();
     state.levelStartTime = Date.now();
     state.fit = null;
     $('eagleEyeActiveBadge').classList.add('hidden');
@@ -37,27 +36,26 @@ function startLevel(levelNum, { restart = false } = {}) {
     state.formationName = gen.formationName;
     state.modifier = gen.modifier;
     state.isBoss = gen.isBoss;
-    if (state.modifier && state.modifier.id === 'speed') state.comboWindow = 8000;
-    if (state.isBoss) state.chestSpinsEarned = 2;
 
     applyLevelHeader();
     renderFullBoard();
     updateAllHUD();
 
-    if (levelNum <= 12) {
+    if (levelNum <= TRAINING_LEVELS) {
         Tutorial.start(levelNum);
     } else {
         Tutorial.clear();
     }
-    if (levelNum > 12 && levelNum <= TRAINING_LEVELS) {
-        announce(`TRIAL ${levelNum - 12}/8`, '#fde68a', state.formationName);
+    if (state.replayFrom) {
+        announce(`REPLAY · LEVEL ${levelNum}`, '#a7f3d0', `Best: ${'⭐'.repeat(starsOf(levelNum)) || 'none yet'}`);
     } else if (state.isBoss) {
         announce('BOSS BOARD', '#fca5a5', `Level ${levelNum}`);
         SoundFX.gong();
     } else if (levelNum > TRAINING_LEVELS) {
         announce(`LEVEL ${levelNum}`, '#fde68a', state.formationName);
     }
-    if (state.modifier) setTimeout(() => spawnFloatingBanner(`${state.modifier.name}: ${state.modifier.desc}`, '#d8b4fe'), 700);
+    const mod = state.modifier;
+    if (mod) setTimeout(() => spawnFloatingBanner(`${mod.name}: ${mod.desc}`, '#d8b4fe'), 700);
     saveProgress();
 }
 
@@ -67,13 +65,14 @@ function restoreBoard(board) {
     state.tiles = board.tiles.map(t => ({ ...t }));
     state.order = null;
     state.undoStack = board.undoStack || [];
-    state.chestSpinsEarned = Math.min(MAX_SPINS, board.chestSpinsEarned || 1);
     state.eagleEyeActive = !!board.eagleEyeActive;
     state.formationName = board.formationName || 'Sanctuary';
     state.modifier = board.modifier || null;
     state.isBoss = !!board.isBoss;
-    state.comboWindow = board.comboWindow || 5500;
     state.itemsUsed = board.itemsUsed || 0;
+    state.toolsUsed = { ...noToolsUsed(), ...(board.toolsUsed || {}) };
+    // Boards saved before stars existed don't know which power-ups were used: assume none.
+
     state.levelStartTime = Date.now() - (board.elapsed || 0) * 1000;
     if (state.eagleEyeActive) {
         $('eagleEyeActiveBadge').classList.remove('hidden');
@@ -89,8 +88,8 @@ function restoreBoard(board) {
 function applyLevelHeader() {
     $('levelBadge').textContent = state.level;
     let label = state.formationName;
-    if (state.level <= 12) label = `🎓 ${label}`;
-    else if (state.level <= TRAINING_LEVELS) label = `🎓 Trial ${state.level - 12}/8 · ${label}`;
+    if (state.level <= TRAINING_LEVELS) label = `🎓 ${label}`;
+    else if (state.replayFrom) label = `🔁 ${label}`;
     $('formationName').textContent = label;
     const mb = $('modifierBadge');
     if (state.isBoss) {
