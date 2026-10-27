@@ -12,7 +12,7 @@ function canUseTool(kind) {
 
 // Out of this power-up and not enough gold to buy one.
 function outOf(kind) {
-    spawnFloatingBanner(`A ${TOOL_NAMES[kind]} costs ${PRICES[kind]} 🪙. Finish levels and open chests for more gold!`, '#f87171');
+    spawnFloatingBanner(`A ${TOOL_NAMES[kind]} costs ${PRICES[kind]} ${COIN}. Finish levels and open chests for more gold!`, '#f87171');
     SoundFX.error();
     buzz(30);
 }

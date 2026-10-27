@@ -51,7 +51,7 @@ const TUTORIAL = {
         steps: [
             { type: 'info', target: '#levelBox', title: 'Level & Board 🀄', text: 'Your level and the board name. 🀄 = tiles left. ✅ = free pairs you can match right now.' },
             { type: 'info', target: '#rankBox', title: 'Stars & Rank ⭐', text: 'Every level gives 1–3 stars: more for using fewer power-ups. Stars raise your Sanctuary Rank. Tap here for the guide.' },
-            { type: 'info', target: '#goldBox', title: 'Gold 🪙', text: 'Gold buys power-ups once yours run out. Earn it by finishing levels, from treasure chests and little games.' },
+            { type: 'info', target: '#goldBox', title: `Gold ${COIN}`, text: 'Gold buys power-ups once yours run out. Earn it by finishing levels, from treasure chests and little games.' },
             { type: 'info', target: '#dock', title: 'Item Dock 🧰', text: 'Your power-ups live here. The badge shows how many you own, or their price in gold when you have none.' },
             { type: 'info', target: '#settingsBtn', title: 'Settings ⚙️', text: 'Sound, music, vibration and your save slots.' },
             { type: 'free', text: 'Now clear the board!' }
@@ -84,7 +84,7 @@ const TUTORIAL = {
         slots: [...rowOf(0, 4), ...rowOf(2, 4), ...rowOf(4, 4), S(1, 1, 1), S(5, 1, 1)],
         golden: 12,
         steps: [
-            { type: 'info', target: 'tile:12', title: 'Golden Tiles 🌟', text: 'Golden pairs give you bonus gold 🪙 when you match them!' },
+            { type: 'info', target: 'tile:12', title: 'Golden Tiles 🌟', text: `Golden pairs give you bonus gold ${COIN} when you match them!` },
             { type: 'free', text: 'Find the golden twin and match it! 🌟' },
             { type: 'free' }
         ]

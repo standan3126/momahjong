@@ -54,7 +54,7 @@ function playBreak(then) {
         saveProgress();
         SoundFX.fanfare();
         FX.confetti(120);
-        $('breakStatus').textContent = `Lovely! +${game.gold} 🪙`;
+        $('breakStatus').innerHTML = `Lovely! +${game.gold} ${COIN}`;
         $('breakSkip').classList.add('hidden');
         $('breakFinish').classList.remove('hidden');
     });

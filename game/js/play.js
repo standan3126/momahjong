@@ -155,7 +155,7 @@ function executeMatchPair(tileA, tileB, source = 'player') {
     if (golden) {
         const bonus = isTrainingLevel(state.level) ? 0 : GOLD_PER_GOLDEN_PAIR;
         if (bonus) addGold(bonus);
-        spawnFloatingBanner(bonus ? `🌟 GOLDEN PAIR! +${bonus} 🪙` : '🌟 GOLDEN PAIR!', '#fde047');
+        spawnFloatingBanner(bonus ? `🌟 GOLDEN PAIR! +${bonus} ${COIN}` : '🌟 GOLDEN PAIR!', '#fde047');
         buzz([15, 30, 15]);
     } else if (source === 'blessing') {
         spawnFloatingBanner('🐉 DIVINE BLESSING! FREE MATCH!', '#34d399');
@@ -173,7 +173,7 @@ function executeMatchPair(tileA, tileB, source = 'player') {
         const r = el.getBoundingClientRect();
         const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
         FX.burst(cx, cy, colors, golden ? 26 : 14, { size: golden ? 5 : 4 });
-        if (i === 0 && golden && !isTrainingLevel(state.level)) popPoints(cx, r.top, `+${GOLD_PER_GOLDEN_PAIR} 🪙`, '#fde047');
+        if (i === 0 && golden && !isTrainingLevel(state.level)) popPoints(cx, r.top, `+${GOLD_PER_GOLDEN_PAIR} ${COIN}`, '#fde047');
         el.classList.remove('selected', 'hinted', 'coach-target', 'torch-target');
         el.classList.add('matching');
         setTimeout(() => el.remove(), 340);
@@ -208,7 +208,7 @@ function spawnFloatingBanner(text, color = '#fde047') {
     div.className = 'floating-banner absolute left-1/2 px-4 py-1.5 rounded-full bg-black/80 border border-amber-400/70 font-extrabold text-xs shadow-xl whitespace-nowrap max-w-[94%] truncate';
     div.style.top = `${10 + layer.children.length * 9}%`;
     div.style.color = color;
-    div.textContent = text;
+    div.innerHTML = text;
     layer.appendChild(div);
     setTimeout(() => div.remove(), 1600);
 }
@@ -219,7 +219,7 @@ function popPoints(x, y, text, color) {
     div.style.left = `${x}px`;
     div.style.top = `${y}px`;
     div.style.color = color;
-    div.textContent = text;
+    div.innerHTML = text;
     $('popLayer').appendChild(div);
     setTimeout(() => div.remove(), 950);
 }

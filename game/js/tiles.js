@@ -1,6 +1,10 @@
 /* ============================================================================
    2. CUSTOM ASIAN ARTWORK SVG GENERATOR (36 DISTINCT HIGH-CONTRAST TILES)
    ============================================================================ */
+// A gold coin drawn in CSS (game.css .coin). The 🪙 emoji is silver on iPhones, so the game
+// never uses it.
+const COIN = '<span class="coin" role="img" aria-label="gold"></span>';
+
 const TILE_CATALOG = [
     // --- SUIT 1: BAMBOO STALKS (b1 - b9) ---
     { id: 'b1', suit: 'bamboo', badge: '1竹', color: '#15803d', name: '1 Bamboo' },

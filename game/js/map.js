@@ -158,7 +158,7 @@ function renderMap() {
     </defs>`;
     $('mapCanvas').innerHTML = `<svg viewBox="0 0 ${MAP_W} ${height}" width="100%" style="display:block">${defs}${svg}</svg>`;
     $('mapStars').textContent = `⭐ ${totalStars()}`;
-    $('mapGold').textContent = `🪙 ${state.gold}`;
+    $('mapGold').innerHTML = `${COIN} ${state.gold}`;
     $('mapRank').textContent = getCurrentRank().name;
     $('mapPlayBtn').textContent = `▶ Play Level ${current}`;
     return { last, height };

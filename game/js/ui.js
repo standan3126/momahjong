@@ -19,7 +19,7 @@ function updateAllHUD() {
     for (const [key, [badgeId, btnId]] of Object.entries(DOCK)) {
         const n = state.inventory[key];
         // When you have none, the badge shows the price: tapping buys one with gold.
-        $(badgeId).textContent = n > 0 ? n : `🪙${PRICES[key]}`;
+        $(badgeId).innerHTML = n > 0 ? n : `${COIN}${PRICES[key]}`;
         $(badgeId).classList.toggle('price', n <= 0);
         $(btnId).classList.toggle('opacity-60', !canAfford(key));
         if (prevInventory[key] != null && n > prevInventory[key]) bumpEl($(btnId));
@@ -133,7 +133,7 @@ function renderSlots() {
                 <button onclick="slotContinue(${n})" class="flex-1 min-w-0 text-left active:scale-95 transition">
                     <div class="text-[10px] font-extrabold tracking-widest text-emerald-300/80 uppercase">Slot ${n} · ${timeAgo(d.lastPlayed || 0)}</div>
                     <div class="font-serif-asian font-extrabold text-amber-300 text-lg leading-tight truncate">Level ${d.level}${training ? ' · 🎓 Training' : ''}</div>
-                    <div class="text-xs text-white font-bold truncate">⭐ ${slotStars(d)} · 🪙 ${upgradeSave(d).gold} · ${getCurrentRank(slotStars(d)).name}</div>
+                    <div class="text-xs text-white font-bold truncate">⭐ ${slotStars(d)} · ${COIN} ${upgradeSave(d).gold} · ${getCurrentRank(slotStars(d)).name}</div>
                 </button>
                 <div class="flex flex-col gap-1.5 shrink-0">
                     <button onclick="slotContinue(${n})" class="px-3 py-2 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 text-emerald-950 font-extrabold text-xs active:scale-95 transition">▶ Play</button>

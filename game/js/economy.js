@@ -87,7 +87,7 @@ function spendTool(kind) {
     if (state.inventory[kind] > 0) state.inventory[kind]--;
     else {
         state.gold -= PRICES[kind];
-        spawnFloatingBanner(`-${PRICES[kind]} 🪙 for a ${TOOL_NAMES[kind]}`, '#fde68a');
+        spawnFloatingBanner(`-${PRICES[kind]} ${COIN} for a ${TOOL_NAMES[kind]}`, '#fde68a');
     }
     state.toolsUsed[kind]++;
     state.itemsUsed++;
@@ -101,7 +101,7 @@ function addGold(amount) {
 // --- The treasure chest: one spin, one of four prizes, amounts vary -----------------
 const randInt = (lo, hi) => lo + Math.floor(Math.random() * (hi - lo + 1));
 const CHEST_PRIZES = [
-    { icon: '🪙', name: 'Gold Pouch', color: '#92400e', weight: 40, roll: () => ({ gold: randInt(20, 40) }) },
+    { icon: COIN, name: 'Gold Pouch', color: '#92400e', weight: 40, roll: () => ({ gold: randInt(20, 40) }) },
     { icon: '🧰', name: 'Helpers', color: '#065f46', weight: 35, roll: () => {
         const got = { hint: 0, undo: 0, shuffle: 0 };
         const n = randInt(2, 3);
@@ -123,7 +123,7 @@ function pickChestPrize() {
 
 // Words for a prize like { gold: 35 } or { hint: 2, undo: 1 }.
 function describePrize(got) {
-    const icons = { gold: '🪙', hint: '💡', shuffle: '🌪️', undo: '📜', torch: '🔥', eagle: '🦅' };
+    const icons = { gold: COIN, hint: '💡', shuffle: '🌪️', undo: '📜', torch: '🔥', eagle: '🦅' };
     const names = { gold: 'gold', ...TOOL_NAMES };
     return Object.entries(got).filter(([, n]) => n > 0).map(([k, n]) => `${icons[k]} ${n} ${names[k]}${n > 1 && k !== 'gold' ? 's' : ''}`).join(' · ');
 }

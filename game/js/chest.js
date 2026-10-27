@@ -2,6 +2,11 @@
    11. LEVEL COMPLETE: STARS, GOLD & THE TREASURE CHEST (EVERY 5TH LEVEL)
        Then what comes next: a little game, a boss gate, the map, or the next level.
    ============================================================================ */
+// The gold coin on the wheel, drawn in SVG (the wheel can't hold the CSS coin).
+const WHEEL_COIN = `<circle cx="100" cy="36" r="13" fill="#fbbf24" stroke="#fef3c7" stroke-width="2"/>
+    <circle cx="100" cy="36" r="8.5" fill="none" stroke="#d97706" stroke-width="1.5"/>
+    <circle cx="96" cy="31" r="3" fill="#fff7c2" opacity="0.8"/>`;
+
 function buildWheel() {
     const P = a => {
         const r = (a - 90) * Math.PI / 180;
@@ -14,7 +19,7 @@ function buildWheel() {
         html += `<path d="M100,100 L${P(a0)} A100,100 0 0,1 ${P(a1)} Z" fill="${p.color}" stroke="#fbbf24" stroke-width="1.5"/>`;
         // Each label reads upright when its slice stops under the pointer
         html += `<g transform="rotate(${a0 + slice / 2} 100 100)">
-            <text x="100" y="36" font-size="30" text-anchor="middle" dominant-baseline="middle">${p.icon}</text>
+            ${p.icon === COIN ? WHEEL_COIN : `<text x="100" y="36" font-size="30" text-anchor="middle" dominant-baseline="middle">${p.icon}</text>`}
             <text x="100" y="64" font-size="10" font-weight="800" fill="#ffffff" text-anchor="middle" letter-spacing="0.5">${p.name.toUpperCase()}</text>
         </g>`;
     });
@@ -63,7 +68,7 @@ function onLevelCompleted() {
     $('levelStats').textContent = isTrainingLevel(level)
         ? `⏱ ${fmtTime(elapsed)} · Lesson complete!`
         : `⏱ ${fmtTime(elapsed)} · ${STAR_NOTES[stars]}${replay && newBest ? ' New best!' : ''}`;
-    $('levelGold').textContent = gold ? `+${gold} 🪙${replay ? ' (replay: half gold)' : isBossLevel(level) ? ' (boss: double gold)' : ''}` : '';
+    $('levelGold').innerHTML = gold ? `+${gold} ${COIN}${replay ? ' (replay: half gold)' : isBossLevel(level) ? ' (boss: double gold)' : ''}` : '';
     const starEls = $('starRow').children;
     for (let i = 0; i < 3; i++) starEls[i].classList.remove('on');
     for (let i = 0; i < stars; i++) {
@@ -145,13 +150,13 @@ function spinChanceChest() {
         SoundFX.prize();
         buzz([20, 40, 60]);
         const iconEl = $('prizeResultIcon');
-        iconEl.textContent = prize.icon;
+        iconEl.innerHTML = prize.icon;
         iconEl.classList.remove('prize-reveal');
         void iconEl.offsetWidth;
         iconEl.classList.add('prize-reveal');
         $('prizeResultTitle').textContent = `${prize.name}!`;
-        $('prizeResultDesc').textContent = describePrize(got);
-        $('prizeResultInv').textContent = `You now have ${state.gold} 🪙`;
+        $('prizeResultDesc').innerHTML = describePrize(got);
+        $('prizeResultInv').innerHTML = `You now have ${state.gold} ${COIN}`;
         $(`legend-${chosenIndex}`).classList.add('win');
 
         const wr = $('wheelWrap').getBoundingClientRect();
@@ -174,7 +179,7 @@ function flyToDock(prize, got) {
     const to = target.getBoundingClientRect();
     const fly = document.createElement('div');
     fly.className = 'fly-icon';
-    fly.textContent = prize.icon;
+    fly.innerHTML = prize.icon;
     fly.style.left = `${from.left}px`;
     fly.style.top = `${from.top}px`;
     document.body.appendChild(fly);

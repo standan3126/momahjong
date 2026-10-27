@@ -126,7 +126,7 @@ const Tutorial = {
             if (s.text && !s._shown) {
                 s._shown = true;
                 $('coachTitle').textContent = '';
-                $('coachText').textContent = s.text;
+                $('coachText').innerHTML = s.text;
                 $('coachNextBtn').style.display = 'none';
                 $('coachSkip').style.display = 'none';
                 bubble.classList.add('passive');
@@ -201,8 +201,8 @@ const Tutorial = {
             finger.style.display = 'none';
         }
 
-        $('coachTitle').textContent = s.title || '';
-        $('coachText').textContent = s.text || '';
+        $('coachTitle').innerHTML = s.title || '';
+        $('coachText').innerHTML = s.text || '';
         $('coachNextBtn').style.display = s.type === 'info' ? '' : 'none';
         $('coachSkip').style.display = this.level <= TRAINING_LEVELS ? '' : 'none';
         bubble.classList.remove('passive');
