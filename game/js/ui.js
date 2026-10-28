@@ -88,6 +88,7 @@ function showLaunch() {
     clearInterval(autoNextTimer);
     ['noMovesModal', 'completeModal', 'msgModal'].forEach(closeModal);
     closeMap();
+    leaveBreak();
     const level = mainLevel();
     $('launchWhere').textContent = level > 1 ? `Level ${level}` : 'Match the tiles and clear the board';
     $('launchLevels').hidden = level < 2;

@@ -218,6 +218,59 @@ test('golden and mystery tiles explain themselves on the first tap, and again wh
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('momahjong:save')).explained)).toEqual({ golden: true, mystery: true })
 })
 
+test('little games: rules the first time, Memory Pairs pays by turns, Odd Tile Out by first taps', async ({ page }) => {
+  await seed(page, { level: 3, gold: 30 })
+  await open(page)
+  await play(page)
+  expect(await page.evaluate(() => [8, 12, 13, 20, 30].map(memoryCoins))).toEqual([20, 20, 19, 12, 5])
+  expect(await page.evaluate(() => [0, 3, 5].map(oddCoins))).toEqual([0, 12, 20])
+
+  // Memory Pairs, the first time: its rules, then 16 tiles; a perfect game pays 20.
+  await page.evaluate(() => { state.levelsCleared = 0; playBreak(() => {}) })
+  await expect(page.locator('#breakArea')).toContainText('within 12 turns')
+  await page.locator('#breakStart').click()
+  const cards = page.locator('.memory-card')
+  await expect(cards).toHaveCount(16)
+  const faces = await cards.evaluateAll((els) => els.map((el) => el.querySelector('.memory-front').innerHTML))
+  const before = await coins(page)
+  for (const face of [...new Set(faces)]) {
+    const [a, b] = faces.flatMap((f, i) => (f === face ? [i] : []))
+    await cards.nth(a).click()
+    await cards.nth(b).click()
+  }
+  await expect(page.locator('#breakStatus')).toContainText('All pairs in 8 turns!')
+  expect(await coins(page)).toBe(before + 20)
+  await page.locator('#breakFinish').click()
+  await expect(page.locator('#breakModal')).toBeHidden()
+
+  // The second time there are no rules first.
+  await page.evaluate(() => { state.levelsCleared = 0; playBreak(() => {}) })
+  await expect(cards).toHaveCount(16)
+  await page.locator('#breakSkip').click()
+
+  // Odd Tile Out: 5 rounds getting bigger; one miss costs that round's 4 coins.
+  await page.evaluate(() => { state.levelsCleared = 1; playBreak(() => {}) })
+  await page.locator('#breakStart').click()
+  const start = await coins(page)
+  for (const [i, size] of [9, 16, 16, 25, 25].entries()) {
+    await expect(page.locator('#breakStatus')).toContainText(`Round ${i + 1} of 5`)
+    await expect(page.locator('.odd-cell')).toHaveCount(size)
+    if (size === 9) await page.locator('.odd-cell[data-odd="false"]').first().click()
+    await page.locator('.odd-cell[data-odd="true"]').click()
+  }
+  await expect(page.locator('#breakStatus')).toContainText('4 of 5 on the first tap.')
+  expect(await coins(page)).toBe(start + 16)
+  await page.locator('#breakFinish').click()
+
+  // Home during a little game leaves it; Play goes on to the next level.
+  await page.evaluate(() => { state.levelDone = true; playBreak(() => playLevel(state.level + 1)) })
+  await homeButton(page).click()
+  await expect(page.locator('#breakModal')).toBeHidden()
+  await expect(page.locator('#launchWhere')).toHaveText('Level 4')
+  await play(page)
+  await expect(page.locator('#levelName')).toHaveText('Level 4')
+})
+
 test("the shared Settings: Momahjong's sections, Jade Sanctuary music, Restart, Night glass, hidden tools", async ({ page }) => {
   await seed(page, { level: 7, gold: 40 })
   await open(page)

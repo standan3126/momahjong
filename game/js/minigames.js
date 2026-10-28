@@ -1,15 +1,29 @@
 /* ============================================================================
    13c. LITTLE GAMES BETWEEN LEVELS: MEMORY PAIRS, ODD TILE OUT
-        Short, calm, impossible to lose; each pays a few coins and can be
-        skipped. How often they come (and which ones) is in Settings.
+        Short and calm, no timers; each can be skipped. They pay by how well you do
+        (the user's rules, 2026-10-28): a perfect game earns LITTLE_GAME_PRIZE (20).
+        Each explains itself the first time it shows up. How often they come (and which
+        ones) is in Settings.
         (Suit Sorting is pulled for now, 2026-10-28: some tiles were in the wrong
         group, e.g. a tree among the animals. Its code stays for when it's fixed.)
         (A sound-based "Wind Chimes" game is noted for later: not everyone can
         play with sound on.)
    ============================================================================ */
 const BREAKS = {
-    memory: { name: 'Memory Pairs', icon: '🀄', gold: 15, run: runMemoryPairs },
-    odd: { name: 'Odd Tile Out', icon: '🔍', gold: 15, run: runOddTileOut }
+    memory: {
+        name: 'Memory Pairs',
+        icon: '🀄',
+        help: 'Find all 8 pairs. Full prize within 12 turns.',
+        rules: `Sixteen tiles lie face down: eight pairs. Tap two to turn them over. A pair stays face up; two different tiles turn back, so remember where they were. Find every pair within 12 turns for the full ${LITTLE_GAME_PRIZE} coins. Each extra turn takes one coin off, but you always get at least ${MEMORY_FLOOR}.`,
+        run: runMemoryPairs
+    },
+    odd: {
+        name: 'Odd Tile Out',
+        icon: '🔍',
+        help: 'Tap the one tile that’s different. 5 rounds.',
+        rules: `Every tile matches except one: tap the odd one out. There are 5 rounds, each a little harder (more tiles, then tiles of the same kind). Each round you get right on the first tap earns ${LITTLE_GAME_PRIZE / 5} coins, ${LITTLE_GAME_PRIZE} for all five. Take your time: there's no timer.`,
+        run: runOddTileOut
+    }
 };
 const SUITS = {
     bamboo: { name: 'Bamboo', icon: '🎋' },
@@ -49,16 +63,31 @@ function playBreak(then) {
     $('breakFinish').classList.add('hidden');
     $('breakSkip').classList.remove('hidden');
     openModal('breakModal');
-    game.run($('breakArea'), () => {
-        addGold(game.gold);
-        updateAllHUD();
+    const start = () => {
+        $('breakHelp').textContent = game.help;
+        game.run($('breakArea'), ({ coins, note }) => {
+            addGold(coins);
+            updateAllHUD();
+            saveProgress();
+            SoundFX.fanfare();
+            if (coins === LITTLE_GAME_PRIZE) FX.confetti(120);
+            $('breakStatus').innerHTML = `${note} +${coins} ${COIN}`;
+            $('breakSkip').classList.add('hidden');
+            $('breakFinish').classList.remove('hidden');
+        });
+    };
+    // The first time each one shows up, its rules come first.
+    const seen = `break-${kind}`;
+    if (state.explained[seen]) return start();
+    $('breakHelp').textContent = 'How it works';
+    $('breakArea').innerHTML = `<p class="text-sm text-emerald-100 leading-relaxed text-left">${game.rules}</p>
+        <button id="breakStart" class="w-full mt-4 py-3 rounded-2xl bg-gradient-to-r from-amber-400 to-amber-500 text-emerald-950 font-extrabold text-sm shadow-lg active:scale-95 transition">Start</button>`;
+    $('breakStart').onclick = () => {
+        state.explained[seen] = true;
         saveProgress();
-        SoundFX.fanfare();
-        FX.confetti(120);
-        $('breakStatus').innerHTML = `Lovely! +${game.gold} ${COIN}`;
-        $('breakSkip').classList.add('hidden');
-        $('breakFinish').classList.remove('hidden');
-    });
+        SoundFX.ui();
+        start();
+    };
 }
 
 function endBreak() {
@@ -68,6 +97,14 @@ function endBreak() {
     breakDone = null;
     saveProgress();
     if (then) then();
+}
+
+// Home during a little game: it's left unplayed (Play goes on to the next level).
+function leaveBreak() {
+    if (!breakDone) return;
+    breakDone = null;
+    closeModal('breakModal');
+    $('breakArea').innerHTML = '';
 }
 
 // A small ivory tile showing one tile face.
@@ -83,18 +120,21 @@ function wiggle(el) {
 }
 
 // --- Memory Pairs: turn over two tiles; matching ones stay face up ----------------------
+// Pays the full prize within MEMORY_TURNS turns, one coin less for each turn after that,
+// never below MEMORY_FLOOR (economy.js).
 function runMemoryPairs(area, onWin) {
-    const ids = shuffled(TILE_CATALOG).slice(0, 6).map(t => t.id);
+    const PAIRS = 8;
+    const ids = shuffled(TILE_CATALOG).slice(0, PAIRS).map(t => t.id);
     const deck = shuffled([...ids, ...ids]);
-    $('breakHelp').textContent = 'Tap two tiles to turn them over. Find all six pairs.';
-    area.innerHTML = `<div class="grid grid-cols-4 gap-2 mx-auto" style="max-width:300px">${deck.map((id, i) => `
+    area.innerHTML = `<div class="grid grid-cols-4 gap-2 mx-auto" style="max-width:280px">${deck.map((id, i) => `
         <button class="memory-card" data-i="${i}" aria-label="Hidden tile">
             <div class="memory-back">🀄</div>${miniTile(id, 'memory-front')}
         </button>`).join('')}</div>`;
     let open = [];
     let found = 0;
+    let turns = 0;
     let busy = false;
-    const status = () => ($('breakStatus').textContent = `Pairs found: ${found} of 6`);
+    const status = () => ($('breakStatus').textContent = `Pairs: ${found} of ${PAIRS} · Turns: ${turns}`);
     status();
     area.querySelectorAll('.memory-card').forEach(card => card.addEventListener('click', () => {
         if (busy || card.classList.contains('up')) return;
@@ -105,14 +145,19 @@ function runMemoryPairs(area, onWin) {
         if (open.length < 2) return;
         const [a, b] = open;
         open = [];
+        turns++;
         if (deck[a.dataset.i] === deck[b.dataset.i]) {
             found++;
             SoundFX.match(found);
             a.classList.add('matched');
             b.classList.add('matched');
             status();
-            if (found === 6) onWin();
+            if (found === PAIRS) {
+                const coins = memoryCoins(turns);
+                onWin({ coins, note: coins === LITTLE_GAME_PRIZE ? `All pairs in ${turns} turns!` : `All pairs in ${turns} turns.` });
+            }
         } else {
+            status();
             busy = true;
             setTimeout(() => {
                 a.classList.remove('up');
@@ -125,28 +170,46 @@ function runMemoryPairs(area, onWin) {
     }));
 }
 
-// --- Odd Tile Out: every tile is the same but one; tap it (3 rounds) --------------------
+// --- Odd Tile Out: every tile is the same but one; tap it (5 rounds, getting harder) -----
+// Each round found on the first tap pays a fifth of the prize.
+const ODD_ROUNDS = [
+    { cols: 3, sameSuit: false },
+    { cols: 4, sameSuit: false },
+    { cols: 4, sameSuit: true },
+    { cols: 5, sameSuit: true },
+    { cols: 5, sameSuit: true }
+];
+
 function runOddTileOut(area, onWin) {
-    const ROUNDS = [{ cols: 3, sameSuit: false }, { cols: 4, sameSuit: true }, { cols: 4, sameSuit: true }];
     let round = 0;
-    $('breakHelp').textContent = 'All the tiles match except one. Tap the odd one out.';
+    let firstTry = 0;
     const play = () => {
-        const { cols, sameSuit } = ROUNDS[round];
+        const { cols, sameSuit } = ODD_ROUNDS[round];
         const main = TILE_CATALOG[Math.floor(Math.random() * TILE_CATALOG.length)];
         const pool = TILE_CATALOG.filter(t => t.id !== main.id && (sameSuit ? t.suit === main.suit : t.suit !== main.suit));
         const odd = pool[Math.floor(Math.random() * pool.length)];
         const n = cols * cols;
         const at = Math.floor(Math.random() * n);
-        $('breakStatus').textContent = `Round ${round + 1} of ${ROUNDS.length}`;
-        area.innerHTML = `<div class="grid gap-2 mx-auto" style="grid-template-columns:repeat(${cols},1fr);max-width:${cols * 70}px">${
+        let missed = false;
+        $('breakStatus').textContent = `Round ${round + 1} of ${ODD_ROUNDS.length} · First tries: ${firstTry}`;
+        area.innerHTML = `<div class="grid gap-2 mx-auto" style="grid-template-columns:repeat(${cols},1fr);max-width:${cols * 64}px">${
             Array.from({ length: n }, (_, i) => `<button class="odd-cell" data-odd="${i === at}" aria-label="${i === at ? odd.name : main.name}">${miniTile(i === at ? odd.id : main.id)}</button>`).join('')
         }</div>`;
         area.querySelectorAll('.odd-cell').forEach(cell => cell.addEventListener('click', () => {
-            if (cell.dataset.odd !== 'true') return wiggle(cell);
+            if (cell.classList.contains('found')) return;
+            if (cell.dataset.odd !== 'true') {
+                missed = true;
+                return wiggle(cell);
+            }
             cell.classList.add('found');
             SoundFX.star(round);
+            if (!missed) firstTry++;
             round++;
-            setTimeout(() => (round < ROUNDS.length ? play() : onWin()), 650);
+            setTimeout(() => {
+                if (round < ODD_ROUNDS.length) return play();
+                $('breakStatus').textContent = '';
+                onWin({ coins: oddCoins(firstTry), note: `${firstTry} of ${ODD_ROUNDS.length} on the first tap.` });
+            }, 650);
         }));
     };
     play();

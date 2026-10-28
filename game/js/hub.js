@@ -56,7 +56,7 @@ const panel = new SettingsPanel({
             title: 'Little games',
             build: (el, p) =>
                 el.append(
-                    note('A short game between levels, for a few coins.'),
+                    note('A short game between levels. A perfect game earns 20 coins.'),
                     choice({
                         label: 'How often',
                         value: p.settings.breakEvery,

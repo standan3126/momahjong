@@ -14,6 +14,15 @@ const COINS_PER_LEVEL = 5;
 const COINS_GOLDEN_WITH_REGULAR = 3;
 const COINS_GOLDEN_PAIR = 7;
 
+// Little games (minigames.js) pay by how well you do; a perfect game earns the prize.
+// Memory Pairs: full prize within 12 turns, one coin less per extra turn, never below 5.
+// Odd Tile Out: a fifth of the prize for each of its 5 rounds found on the first tap.
+const LITTLE_GAME_PRIZE = 20;
+const MEMORY_TURNS = 12;
+const MEMORY_FLOOR = 5;
+const memoryCoins = turns => Math.max(MEMORY_FLOOR, LITTLE_GAME_PRIZE - Math.max(0, turns - MEMORY_TURNS));
+const oddCoins = firstTries => Math.round(LITTLE_GAME_PRIZE * firstTries / 5);
+
 const isBossLevel = level => level % 10 === 0;
 
 // Coins for finishing a level (replays pay the same).
