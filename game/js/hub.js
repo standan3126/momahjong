@@ -47,6 +47,7 @@ const panel = new SettingsPanel({
                     }),
                     button('Show the tips again', () => {
                         p.close();
+                        state.explained = {};
                         showTips();
                     }),
                 ),

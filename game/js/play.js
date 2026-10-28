@@ -71,6 +71,10 @@ function onTileTapped(uid) {
 
     document.querySelectorAll('.mahjong-tile.hinted').forEach(el => el.classList.remove('hinted'));
 
+    // The first golden or mystery tile ever tapped explains itself once the tap has played.
+    const kind = kindOf(tile);
+    if (kind && !state.explained[kind]) setTimeout(() => !state.levelDone && explainTile(kind), 250);
+
     const active = state.tiles.filter(t => !t.removed);
     if (!isTileFree(tile, active)) {
         // Blocked mystery tiles allow a quick peek

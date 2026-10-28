@@ -21,6 +21,8 @@ function freshState() {
         breakCount: 0,          // levels since the last little game
         levelsCleared: 0,
         tipsSeen: false,
+        explained: {},          // golden / mystery: true once its explanation has been shown
+        heldAt: 0,              // when a tile was last pressed and held (its tap is ignored)
         // Active level runtime state
         tiles: [],
         order: null,
@@ -69,6 +71,7 @@ function loadSave() {
     state.breakCount = d.breakCount || 0;
     state.levelsCleared = d.levelsCleared || 0;
     state.tipsSeen = !!d.tipsSeen;
+    state.explained = d.explained || {};
     return d.board || null;
 }
 
@@ -81,6 +84,7 @@ function saveProgress() {
         breakCount: state.breakCount,
         levelsCleared: state.levelsCleared,
         tipsSeen: state.tipsSeen,
+        explained: state.explained,
         board: null
     };
     // Resume mid-level (replays simply restart instead)

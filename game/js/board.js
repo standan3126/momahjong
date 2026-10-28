@@ -83,6 +83,39 @@ const BOSS_BADGE = {
     desc: 'Every 10th level is a boss: a bigger, harder board. It pays double coins.'
 };
 
+// Golden and mystery tiles explain themselves: the first time one is tapped, and whenever one
+// is pressed and held (a tap still plays as usual).
+const TILE_KINDS = {
+    golden: { name: '🌟 Golden tile', desc: 'Golden tiles match like any other tile and earn extra coins: 3 with a regular tile, 7 when two golden tiles meet. Each pays once per board. Press and hold a golden tile to read this again.' },
+    mystery: { name: '❓ Mystery tile', desc: 'A mystery tile hides its face until it comes free (nothing on top, and its left or right side open). Then it turns face up for good. Tap a covered one to peek for a moment. Press and hold it to read this again.' }
+};
+const HOLD_MS = 550;
+const kindOf = tile => (tile.isGolden ? 'golden' : tile.isMystery && !tile.mysteryRevealed ? 'mystery' : null);
+
+function explainTile(kind) {
+    state.explained[kind] = true;
+    saveProgress();
+    const k = TILE_KINDS[kind];
+    showMessage({ title: k.name, text: k.desc, buttons: [{ label: 'Got it', style: 'primary' }] });
+}
+
+// Press and hold: explains a golden or mystery tile, and the tap that follows is ignored.
+function watchHold(el, tile) {
+    let timer = null;
+    const stop = () => clearTimeout(timer);
+    el.addEventListener('pointerdown', () => {
+        stop();
+        const kind = kindOf(tile);
+        if (!kind) return;
+        timer = setTimeout(() => {
+            state.heldAt = Date.now();
+            buzz(15);
+            explainTile(kind);
+        }, HOLD_MS);
+    });
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach(e => el.addEventListener(e, stop));
+}
+
 function explainSpecial() {
     const special = state.isBoss ? BOSS_BADGE : state.modifier;
     if (!special) return;
@@ -134,8 +167,10 @@ function renderFullBoard({ shuffleIn = false } = {}) {
             </div>`;
         el.addEventListener('click', (e) => {
             e.stopPropagation();
+            if (Date.now() - state.heldAt < 700) return void (state.heldAt = 0);
             onTileTapped(tile.uid);
         });
+        watchHold(el, tile);
         frag.appendChild(el);
     });
 

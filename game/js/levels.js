@@ -8,11 +8,23 @@ const MODIFIERS = [
     { id: 'golden', name: '🌟 Golden Rain', desc: 'This level has extra golden tiles. Match them for more coins: 3 with a regular tile, 7 when two golden tiles meet.' },
     { id: 'misty', name: '🌫️ Misty Peaks', desc: 'This level has extra mystery tiles. They show a "?" until they come free, then they turn face up. Tap a covered one to peek for a moment.' }
 ];
+// The staircase (the user's design, 2026-10-28): each ten levels is one step harder. A boss
+// (every 10th) plays one step ahead, and the two levels after it ease back a step:
+//   1-9 = 1, 10 = 1.5, 11-12 = 1, 13-19 = 1.5, 20 = 2, 21-22 = 1.5, 23-29 = 2, 30 = 2.5 ...
+// Steps climb to the hardest boards (STEP_TOP) by the level 140 boss; later levels stay there.
+// The steps follow the same gentle-then-steeper-then-gentle curve as before, so the overall
+// pace is unchanged; bosses also get a bigger board on top of their step (below).
+const STEP_TOP = 8;
 const easeInOut = t => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+function difficultyStep(level) {
+    const ten = Math.floor((level - 1) / 10);
+    const place = level - ten * 10;               // 1..10 within its ten
+    const k = place === 10 ? ten + 1 : place <= 2 ? Math.max(0, ten - 1) : ten;
+    return 1 + 0.5 * k;
+}
 
 function getLevelConfig(level) {
-    // Ramps for ~130 levels, then holds at max difficulty forever
-    const e = easeInOut(Math.min(1, (level - 1) / 130));
+    const e = easeInOut(Math.min(1, (difficultyStep(level) - 1) / (STEP_TOP - 1)));
     const cfg = {
         kind: 'endless',
         pairs: Math.round(26 + e * 32),
@@ -96,16 +108,23 @@ function fallbackPairs(slots) {
     return order;
 }
 
-function generateBoard(level) {
+// Which of a level's possible boards it plays: levels 1-150 use the board picked for them in
+// js/level-seeds.js (build/tune-levels.mjs tries 24 per level and keeps the one whose
+// difficulty fits the staircase); later levels use board 0.
+const levelVariant = level => parseInt(LEVEL_SEEDS[level - 1] || '0', 36);
+const SEED_STRIDE = 7919;
+
+function generateBoard(level, variant = levelVariant(level)) {
     const cfg = getLevelConfig(level);
-    const f = generateFormation(mulberry32(hashSeed(level, 1)), cfg.pairs * 2, cfg.layers);
+    const vs = variant * SEED_STRIDE;
+    const f = generateFormation(mulberry32(hashSeed(level, 1 + vs)), cfg.pairs * 2, cfg.layers);
     const slots = f.slots;
     const name = f.name;
 
     let order = null;
     let rng = null;
     for (let attempt = 0; attempt < 40 && !order; attempt++) {
-        rng = mulberry32(hashSeed(level, 1000 + attempt));
+        rng = mulberry32(hashSeed(level, 1000 + attempt + vs));
         order = peelPairs(slots, rng, cfg.d || 0);
     }
     if (!order) order = fallbackPairs(slots);

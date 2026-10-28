@@ -9,9 +9,9 @@ const js = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'game',
 const stub = () => new Proxy(function () {}, { get: () => stub(), apply: () => stub() });
 const context = vm.createContext({ console, Math, Date, JSON, window: stub(), document: stub(), localStorage: stub(), navigator: stub() });
 // The level code only: tile list, random, shapes, difficulty and the economy rules it uses.
-const code = ['tiles', 'random', 'formations', 'levels', 'economy'].map(f => fs.readFileSync(path.join(js, `${f}.js`), 'utf8')).join('\n');
-vm.runInContext(code + '\n;globalThis.__api = { generateBoard, isTileFree };', context);
-const { generateBoard, isTileFree } = context.__api;
+const code = ['tiles', 'random', 'formations', 'level-seeds', 'levels', 'economy'].map(f => fs.readFileSync(path.join(js, `${f}.js`), 'utf8')).join('\n');
+vm.runInContext(code + '\n;globalThis.__api = { generateBoard, isTileFree, difficultyStep, LEVEL_SEEDS };', context);
+const { generateBoard, isTileFree, difficultyStep, LEVEL_SEEDS } = context.__api;
 
 // Replays the solution order: every pair must be free at the moment it's taken.
 function solvable(level) {
@@ -30,6 +30,14 @@ const levels = [];
 for (let l = 1; l <= 300; l++) levels.push(l);
 for (let i = 0; i < 100; i++) levels.push(301 + Math.floor(Math.random() * 1e6));
 const failures = levels.filter(l => !solvable(l));
+
+// The user's staircase (momahjong CLAUDE.md), and a picked board for each of levels 1-150.
+const staircase = { 1: 1, 9: 1, 10: 1.5, 11: 1, 12: 1, 13: 1.5, 19: 1.5, 20: 2, 21: 1.5, 22: 1.5, 23: 2, 29: 2, 30: 2.5, 31: 2, 33: 2.5, 40: 3 };
+const offStairs = Object.entries(staircase).filter(([l, s]) => difficultyStep(+l) !== s).map(([l]) => +l);
+if (offStairs.length || LEVEL_SEEDS.length !== 150) {
+    console.error({ offStairs, seeds: LEVEL_SEEDS.length });
+    process.exit(1);
+}
 const sig = l => JSON.stringify(generateBoard(l).tiles.map(t => [t.x, t.y, t.z, t.tileId]));
 const unstable = [1, 10, 57, 150, 999].filter(l => sig(l) !== sig(l));
 console.log(`Checked ${levels.length} levels: ${failures.length} unsolvable, ${unstable.length} not repeatable`);

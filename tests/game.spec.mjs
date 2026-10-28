@@ -182,6 +182,42 @@ test('a special level explains itself when its badge is tapped, and stays until 
   await expect(page.locator('#msgModal')).toBeHidden()
 })
 
+test('golden and mystery tiles explain themselves on the first tap, and again when pressed and held', async ({ page }) => {
+  await seed(page, { level: 1, gold: 30 })
+  await open(page)
+  await play(page)
+  const uid = await page.evaluate(() => state.tiles.find((t) => t.isGolden).uid)
+  const golden = page.locator(`#tile-${uid}`)
+  await golden.dispatchEvent('click')
+  await expect(page.locator('#msgTitle')).toHaveText('🌟 Golden tile')
+  await page.getByRole('button', { name: 'Got it' }).click()
+  await golden.dispatchEvent('click')
+  await golden.dispatchEvent('click')
+  await page.waitForTimeout(400)
+  await expect(page.locator('#msgModal')).toBeHidden() // only the first time
+
+  // Press and hold explains again; the tap that ends the hold doesn't play.
+  const selected = await page.evaluate(() => state.selectedUid)
+  await golden.dispatchEvent('pointerdown')
+  await page.waitForTimeout(700)
+  await golden.dispatchEvent('pointerup')
+  await golden.dispatchEvent('click')
+  await expect(page.locator('#msgTitle')).toHaveText('🌟 Golden tile')
+  expect(await page.evaluate(() => state.selectedUid)).toBe(selected)
+  await page.getByRole('button', { name: 'Got it' }).click()
+
+  // A covered mystery tile, on a Misty Peaks level.
+  const misty = await page.evaluate(() => {
+    for (let l = 5; l < 200; l++) if (getLevelConfig(l).modifier?.id === 'misty') return l
+  })
+  await page.evaluate((l) => startLevel(l), misty)
+  const covered = await page.evaluate(() => state.tiles.find((t) => t.isMystery && !t.mysteryRevealed && !t.isGolden).uid)
+  await page.locator(`#tile-${covered}`).dispatchEvent('click')
+  await expect(page.locator('#msgTitle')).toHaveText('❓ Mystery tile')
+  await page.getByRole('button', { name: 'Got it' }).click()
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('momahjong:save')).explained)).toEqual({ golden: true, mystery: true })
+})
+
 test("the shared Settings: Momahjong's sections, Jade Sanctuary music, Restart, Night glass, hidden tools", async ({ page }) => {
   await seed(page, { level: 7, gold: 40 })
   await open(page)
