@@ -16,8 +16,6 @@ function verifyGenerated(gen) {
 function verifyLevels(levels) {
     const failures = [];
     for (const level of levels) {
-        const cfg = getLevelConfig(level);
-        if (cfg.kind === 'tutorial' && cfg.tut.types) continue; // hand-placed lessons
         const a = generateBoard(level);
         const err = verifyGenerated(a);
         if (err) failures.push({ level, err });

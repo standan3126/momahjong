@@ -12,23 +12,23 @@ function resetLevelRuntime() {
     state.undoStack = [];
     state.chimeStep = 0;
     state.lastMatchAt = 0;
-    state.eagleEyeActive = false;
     state.autoCompleting = false;
     state.levelDone = false;
-    state.itemsUsed = 0;
-    state.toolsUsed = noToolsUsed();
-    state.levelStartTime = Date.now();
     state.fit = null;
-    $('eagleEyeActiveBadge').classList.add('hidden');
-    $('eagleEyeActiveBadge').classList.remove('flex');
     $('autoCompleteBtn').classList.add('hidden');
-    ['noMovesModal', 'chestModal'].forEach(closeModal);
+    ['noMovesModal', 'completeModal'].forEach(closeModal);
 }
 
 function startLevel(levelNum, { restart = false } = {}) {
+    // Restarting keeps the record of golden tiles already paid for, so it can't pay twice.
+    const keepPaid = restart && state.paidLevel === levelNum;
     state.level = levelNum;
     resetLevelRuntime();
-    if (restart) state.streak = 0;
+    if (!keepPaid) {
+        state.paidGolden = [];
+        state.earned = 0;
+    }
+    state.paidLevel = levelNum;
 
     const gen = generateBoard(levelNum);
     state.tiles = gen.tiles;
@@ -37,26 +37,18 @@ function startLevel(levelNum, { restart = false } = {}) {
     state.modifier = gen.modifier;
     state.isBoss = gen.isBoss;
 
+    showBoard();
     applyLevelHeader();
     renderFullBoard();
     updateAllHUD();
 
-    if (levelNum <= TRAINING_LEVELS) {
-        Tutorial.start(levelNum);
-    } else {
-        Tutorial.clear();
-    }
-    if (state.replayFrom) {
-        announce(`REPLAY · LEVEL ${levelNum}`, '#a7f3d0', `Best: ${'⭐'.repeat(starsOf(levelNum)) || 'none yet'}`);
-    } else if (state.isBoss) {
+    if (state.replayFrom) announce(`REPLAY · LEVEL ${levelNum}`, '#a7f3d0');
+    else if (state.isBoss) {
         announce('BOSS BOARD', '#fca5a5', `Level ${levelNum}`);
         SoundFX.gong();
-    } else if (levelNum > TRAINING_LEVELS) {
-        announce(`LEVEL ${levelNum}`, '#fde68a', state.formationName);
-    }
-    const mod = state.modifier;
-    if (mod) setTimeout(() => spawnFloatingBanner(`${mod.name}: ${mod.desc}`, '#d8b4fe'), 700);
+    } else announce(`LEVEL ${levelNum}`, '#fde68a', state.formationName);
     saveProgress();
+    if (!state.tipsSeen) setTimeout(showTips, 900);
 }
 
 function restoreBoard(board) {
@@ -65,42 +57,37 @@ function restoreBoard(board) {
     state.tiles = board.tiles.map(t => ({ ...t }));
     state.order = null;
     state.undoStack = board.undoStack || [];
-    state.eagleEyeActive = !!board.eagleEyeActive;
+    state.paidGolden = board.paidGolden || [];
+    state.paidLevel = board.level;
+    state.earned = board.earned || 0;
     state.formationName = board.formationName || 'Sanctuary';
     state.modifier = board.modifier || null;
     state.isBoss = !!board.isBoss;
-    state.itemsUsed = board.itemsUsed || 0;
-    state.toolsUsed = { ...noToolsUsed(), ...(board.toolsUsed || {}) };
-    // Boards saved before stars existed don't know which power-ups were used: assume none.
-
-    state.levelStartTime = Date.now() - (board.elapsed || 0) * 1000;
-    if (state.eagleEyeActive) {
-        $('eagleEyeActiveBadge').classList.remove('hidden');
-        $('eagleEyeActiveBadge').classList.add('flex');
-    }
-    Tutorial.clear();
+    showBoard();
     applyLevelHeader();
     renderFullBoard();
     updateAllHUD();
-    spawnFloatingBanner(`▶ Resumed Level ${state.level}`, '#a7f3d0');
 }
 
+// The level and, for a boss or special level, a badge that explains itself when tapped.
 function applyLevelHeader() {
-    $('levelBadge').textContent = state.level;
-    let label = state.formationName;
-    if (state.level <= TRAINING_LEVELS) label = `🎓 ${label}`;
-    else if (state.replayFrom) label = `🔁 ${label}`;
-    $('formationName').textContent = label;
+    $('levelName').textContent = state.replayFrom ? `Level ${state.level} · replay` : `Level ${state.level}`;
     const mb = $('modifierBadge');
-    if (state.isBoss) {
-        mb.textContent = '👹 BOSS BOARD';
-        mb.classList.remove('hidden');
-    } else if (state.modifier) {
-        mb.textContent = state.modifier.name;
-        mb.classList.remove('hidden');
-    } else {
-        mb.classList.add('hidden');
-    }
+    const special = state.isBoss ? BOSS_BADGE : state.modifier;
+    mb.classList.toggle('hidden', !special);
+    if (special) mb.textContent = special.name;
+}
+
+const BOSS_BADGE = {
+    name: '👹 Boss level',
+    desc: 'Every 10th level is a boss: a bigger, harder board. It pays double coins.'
+};
+
+function explainSpecial() {
+    const special = state.isBoss ? BOSS_BADGE : state.modifier;
+    if (!special) return;
+    SoundFX.ui();
+    showMessage({ title: special.name, text: special.desc, buttons: [{ label: 'Got it', style: 'primary' }] });
 }
 
 function renderFullBoard({ shuffleIn = false } = {}) {
@@ -138,7 +125,7 @@ function renderFullBoard({ shuffleIn = false } = {}) {
                     <div class="w-[88%] h-[88%] flex items-center justify-center pt-1">${getTileSVG(tile.tileId)}</div>
                     ${pips}
                     ${tile.isMystery ? `
-                        <div id="mystery-${tile.uid}" class="mystery-cover ${tile.mysteryRevealed || state.eagleEyeActive ? 'hidden' : ''}">
+                        <div id="mystery-${tile.uid}" class="mystery-cover ${tile.mysteryRevealed ? 'hidden' : ''}">
                             <span class="text-2xl font-extrabold text-amber-300">?</span>
                             <span class="text-[9px] text-purple-200 font-bold uppercase tracking-wider">Mystery</span>
                         </div>` : ''}

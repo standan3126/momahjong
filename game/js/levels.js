@@ -1,20 +1,18 @@
 /* ============================================================================
    6. DIFFICULTY CURVE & GUARANTEED-SOLVABLE BOARD GENERATOR
    ============================================================================ */
-// 10 hand-built lessons, then endless levels (a boss every 10th from level 20).
-const TRAINING_LEVELS = 10;
+// Every level is generated (the 10 hand-built lessons went on 2026-10-28, when everyone started
+// over: a few skippable tips on the first board teach the game instead). A boss every 10th.
+// A special level shows its badge under the level; tapping the badge explains it.
 const MODIFIERS = [
-    { id: 'golden', name: '🌟 Golden Rain', desc: 'Extra Golden pairs this level: more bonus gold!' },
-    { id: 'misty', name: '🌫️ Misty Peaks', desc: 'Extra Mystery tiles hide in the mist!' }
+    { id: 'golden', name: '🌟 Golden Rain', desc: 'This level has extra golden tiles. Match them for more coins: 3 with a regular tile, 7 when two golden tiles meet.' },
+    { id: 'misty', name: '🌫️ Misty Peaks', desc: 'This level has extra mystery tiles. They show a "?" until they come free, then they turn face up. Tap a covered one to peek for a moment.' }
 ];
 const easeInOut = t => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
 
 function getLevelConfig(level) {
-    if (level <= TRAINING_LEVELS) {
-        return { kind: 'tutorial', tut: TUTORIAL[level], variety: 6, d: 0 };
-    }
-    // Endless: ramps for ~130 levels, then holds at max difficulty forever
-    const e = easeInOut(Math.min(1, (level - TRAINING_LEVELS - 1) / 130));
+    // Ramps for ~130 levels, then holds at max difficulty forever
+    const e = easeInOut(Math.min(1, (level - 1) / 130));
     const cfg = {
         kind: 'endless',
         pairs: Math.round(26 + e * 32),
@@ -31,7 +29,7 @@ function getLevelConfig(level) {
         cfg.pairs = Math.min(64, cfg.pairs + 6);
         cfg.golden++;
         cfg.layers = Math.min(5, cfg.layers + 1);
-    } else if (level >= TRAINING_LEVELS + 5) {
+    } else if (level >= 5) {
         const r = mulberry32(hashSeed(level, 4242))();
         if (r < 0.3) cfg.modifier = MODIFIERS[Math.floor(r / 0.15)];
     }
@@ -100,15 +98,9 @@ function fallbackPairs(slots) {
 
 function generateBoard(level) {
     const cfg = getLevelConfig(level);
-    let slots, name;
-    if (cfg.kind === 'tutorial') {
-        slots = cfg.tut.slots.map(s => ({ ...s }));
-        name = cfg.tut.title;
-    } else {
-        const f = generateFormation(mulberry32(hashSeed(level, 1)), cfg.pairs * 2, cfg.layers);
-        slots = f.slots;
-        name = f.name;
-    }
+    const f = generateFormation(mulberry32(hashSeed(level, 1)), cfg.pairs * 2, cfg.layers);
+    const slots = f.slots;
+    const name = f.name;
 
     let order = null;
     let rng = null;
@@ -123,29 +115,14 @@ function generateBoard(level) {
         tileId: 'b1', removed: false, isGolden: false, isMystery: false, mysteryRevealed: false
     }));
 
-    if (cfg.kind === 'tutorial' && cfg.tut.types) {
-        cfg.tut.types.forEach((id, i) => { tiles[i].tileId = id; });
-    } else {
-        const pool = rngShuffle(TILE_CATALOG.map(c => c.id), rng).slice(0, Math.max(4, Math.min(TILE_CATALOG.length, cfg.variety)));
-        const typeList = rngShuffle(order.map((_, i) => pool[i % pool.length]), rng);
-        order.forEach(([a, b], i) => { tiles[a].tileId = typeList[i]; tiles[b].tileId = typeList[i]; });
-    }
+    const pool = rngShuffle(TILE_CATALOG.map(c => c.id), rng).slice(0, Math.max(4, Math.min(TILE_CATALOG.length, cfg.variety)));
+    const typeList = rngShuffle(order.map((_, i) => pool[i % pool.length]), rng);
+    order.forEach(([a, b], i) => { tiles[a].tileId = typeList[i]; tiles[b].tileId = typeList[i]; });
 
-    if (cfg.kind === 'tutorial') {
-        if (cfg.tut.golden != null) {
-            const g = tiles[cfg.tut.golden];
-            const pair = order.find(p => p.includes(g.uid));
-            const partner = cfg.tut.types ? tiles.find(t => t.uid !== g.uid && t.tileId === g.tileId) : tiles[pair[0] === g.uid ? pair[1] : pair[0]];
-            g.isGolden = true;
-            if (partner) partner.isGolden = true;
-        }
-        (cfg.tut.mystery || []).forEach(u => { tiles[u].isMystery = true; });
-    } else {
-        rngShuffle(order.map((_, i) => i), rng).slice(0, Math.min(cfg.golden, order.length))
-            .forEach(i => order[i].forEach(u => { tiles[u].isGolden = true; }));
-        const blocked = tiles.filter(t => !isTileFree(t, tiles));
-        rngShuffle(blocked, rng).slice(0, cfg.mystery).forEach(t => { t.isMystery = true; });
-    }
+    rngShuffle(order.map((_, i) => i), rng).slice(0, Math.min(cfg.golden, order.length))
+        .forEach(i => order[i].forEach(u => { tiles[u].isGolden = true; }));
+    const blocked = tiles.filter(t => !isTileFree(t, tiles));
+    rngShuffle(blocked, rng).slice(0, cfg.mystery).forEach(t => { t.isMystery = true; });
 
     return { tiles, order, formationName: name, modifier: cfg.modifier || null, isBoss: !!cfg.isBoss, cfg };
 }

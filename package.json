@@ -1,0 +1,12 @@
+{
+  "name": "momahjong-tests",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "cd build && npm run build",
+    "test": "node build/check-levels.mjs && npm run build && playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.1"
+  }
+}

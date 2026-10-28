@@ -1,5 +1,5 @@
 /* ============================================================================
-   9. GAMEPLAY LOOP: SELECTION, MATCHING, COMBOS & DIVINE BLESSINGS
+   9. GAMEPLAY LOOP: SELECTION, MATCHING, GOLDEN TILES
    ============================================================================ */
 function refreshBoardInteractivity() {
     if (!state.tiles.length) return;
@@ -25,31 +25,17 @@ function refreshBoardInteractivity() {
         if (!el) return;
         el.classList.toggle('selected', state.selectedUid === tile.uid);
         el.classList.toggle('dimmed', settings.highlightFree && !free);
-        el.classList.remove('xray-match');
     });
-
-    // Eagle Eye: highlight every twin of the selected tile
-    if (state.eagleEyeActive && state.selectedUid !== null) {
-        const sel = state.tiles.find(t => t.uid === state.selectedUid);
-        if (sel) {
-            active.forEach(t => {
-                if (t.uid !== sel.uid && t.tileId === sel.tileId) {
-                    const el = $(`tile-${t.uid}`);
-                    if (el) el.classList.add('xray-match');
-                }
-            });
-        }
-    }
 
     const openPairs = findAvailablePairs(freeList);
     $('tilesLeftCount').textContent = active.length;
     $('availPairsCount').textContent = openPairs.length;
+    $('matchesWord').textContent = openPairs.length === 1 ? 'match' : 'matches';
 
     // Auto-Complete appears when nothing is stacked and the board is small
     const anyStacked = active.some(t => hasTileAbove(t, active));
     const autoBtn = $('autoCompleteBtn');
-    // (taught in lesson 10, so earlier lessons can't skip their own forced moves)
-    const showAuto = state.level >= 9 && !anyStacked && active.length >= 4 && active.length <= 16 && !state.autoCompleting && !state.levelDone;
+    const showAuto = !anyStacked && active.length >= 4 && active.length <= 16 && !state.autoCompleting && !state.levelDone;
     autoBtn.classList.toggle('hidden', !showAuto);
 
     if (active.length === 0 && !state.levelDone) {
@@ -58,13 +44,12 @@ function refreshBoardInteractivity() {
         setTimeout(onLevelCompleted, 420);
     } else if (active.length > 0 && openPairs.length === 0 && !state.autoCompleting) {
         setTimeout(() => {
-            if (state.levelDone || state.autoCompleting || Tutorial.blocking()) return;
+            if (state.levelDone || state.autoCompleting) return;
             const act = state.tiles.filter(t => !t.removed);
             if (!act.length || findAvailablePairs(act.filter(t => isTileFree(t, act))).length) return;
             if (!$('noMovesModal').classList.contains('hidden')) return;
-            SoundFX.gong();
             buzz([40, 60, 40]);
-            openModal('noMovesModal');
+            openStuck();
         }, 520);
     }
 }
@@ -83,10 +68,6 @@ function onTileTapped(uid) {
     if (state.autoCompleting || state.levelDone) return;
     const tile = state.tiles.find(t => t.uid === uid);
     if (!tile || tile.removed) return;
-    if (!Tutorial.can('tile', uid)) {
-        Tutorial.nudge();
-        return;
-    }
 
     document.querySelectorAll('.mahjong-tile.hinted').forEach(el => el.classList.remove('hinted'));
 
@@ -108,7 +89,6 @@ function onTileTapped(uid) {
             void el.offsetWidth;
             el.classList.add('shake');
         }
-        Tutorial.notify('blockedTap', uid);
         return;
     }
 
@@ -116,7 +96,6 @@ function onTileTapped(uid) {
         state.selectedUid = null;
         SoundFX.deselect();
         refreshBoardInteractivity();
-        Tutorial.render();
         return;
     }
 
@@ -130,7 +109,6 @@ function onTileTapped(uid) {
     SoundFX.select();
     buzz(8);
     refreshBoardInteractivity();
-    Tutorial.render();
 }
 
 // Matches within this long of each other walk the chime along its tune.
@@ -151,55 +129,35 @@ function executeMatchPair(tileA, tileB, source = 'player') {
     if (golden) SoundFX.golden();
     else SoundFX.match(state.chimeStep);
 
-    const rank = getCurrentRank();
-    if (golden) {
-        const bonus = isTrainingLevel(state.level) ? 0 : GOLD_PER_GOLDEN_PAIR;
-        if (bonus) addGold(bonus);
-        spawnFloatingBanner(bonus ? `🌟 GOLDEN PAIR! +${bonus} ${COIN}` : '🌟 GOLDEN PAIR!', '#fde047');
+    // Golden tiles pay once each per board: 3 with a regular tile, 7 for two golden tiles.
+    const bonus = golden ? goldenCoins(tileA, tileB) : 0;
+    if (bonus) {
+        addGold(bonus);
+        state.earned += bonus;
+        spawnFloatingBanner(tileA.isGolden && tileB.isGolden ? `🌟 Two golden tiles! +${bonus} ${COIN}` : `🌟 Golden tile! +${bonus} ${COIN}`, '#fde047');
         buzz([15, 30, 15]);
-    } else if (source === 'blessing') {
-        spawnFloatingBanner('🐉 DIVINE BLESSING! FREE MATCH!', '#34d399');
     }
 
     if (source === 'player') buzz(12);
 
     // Particles + flying points, then the vanish animation
-    const colors = golden ? ['#fde047', '#fbbf24', '#ffffff', '#f59e0b']
-        : source === 'torch' ? ['#fb923c', '#ef4444', '#fde047', '#7c2d12']
-        : ['#34d399', '#fbbf24', '#a7f3d0', '#ffffff'];
+    const colors = golden ? ['#fde047', '#fbbf24', '#ffffff', '#f59e0b'] : ['#34d399', '#fbbf24', '#a7f3d0', '#ffffff'];
     [tileA, tileB].forEach((t, i) => {
         const el = $(`tile-${t.uid}`);
         if (!el) return;
         const r = el.getBoundingClientRect();
         const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
         FX.burst(cx, cy, colors, golden ? 26 : 14, { size: golden ? 5 : 4 });
-        if (i === 0 && golden && !isTrainingLevel(state.level)) popPoints(cx, r.top, `+${GOLD_PER_GOLDEN_PAIR} ${COIN}`, '#fde047');
-        el.classList.remove('selected', 'hinted', 'coach-target', 'torch-target');
+        if (i === 0 && bonus) popPoints(cx, r.top, `+${bonus} ${COIN}`, '#fde047');
+        el.classList.remove('selected', 'hinted');
         el.classList.add('matching');
         setTimeout(() => el.remove(), 340);
     });
 
-    Tutorial.notify('match', [tileA.uid, tileB.uid]);
     updateAllHUD();
     refreshBoardInteractivity();
     saveProgress();
-    setTimeout(() => {
-        fitBoard(true);
-        Tutorial.render();
-    }, 360);
-
-    // Passive Rank Perk: Divine Blessing auto-match (not during scripted lessons)
-    if (source === 'player' && !state.autoCompleting && !Tutorial.isScripted() && rank.blessingChance > 0) {
-        const remaining = state.tiles.filter(t => !t.removed);
-        if (remaining.length >= 4 && Math.random() < rank.blessingChance) {
-            setTimeout(() => {
-                if (state.levelDone) return;
-                const act = state.tiles.filter(t => !t.removed);
-                const pairs = findAvailablePairs(act.filter(t => isTileFree(t, act)));
-                if (pairs.length) executeMatchPair(pairs[0][0], pairs[0][1], 'blessing');
-            }, 420);
-        }
-    }
+    setTimeout(() => fitBoard(true), 360);
 }
 
 function spawnFloatingBanner(text, color = '#fde047') {

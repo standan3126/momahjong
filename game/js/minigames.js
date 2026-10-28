@@ -1,14 +1,15 @@
 /* ============================================================================
-   13c. LITTLE GAMES BETWEEN LEVELS: MEMORY PAIRS, ODD TILE OUT, SUIT SORTING
-        Short, calm, impossible to lose; each pays a little gold and can be
+   13c. LITTLE GAMES BETWEEN LEVELS: MEMORY PAIRS, ODD TILE OUT
+        Short, calm, impossible to lose; each pays a few coins and can be
         skipped. How often they come (and which ones) is in Settings.
+        (Suit Sorting is pulled for now, 2026-10-28: some tiles were in the wrong
+        group, e.g. a tree among the animals. Its code stays for when it's fixed.)
         (A sound-based "Wind Chimes" game is noted for later: not everyone can
         play with sound on.)
    ============================================================================ */
 const BREAKS = {
     memory: { name: 'Memory Pairs', icon: '🀄', gold: 15, run: runMemoryPairs },
-    odd: { name: 'Odd Tile Out', icon: '🔍', gold: 15, run: runOddTileOut },
-    sort: { name: 'Suit Sorting', icon: '🥣', gold: 15, run: runSuitSorting }
+    odd: { name: 'Odd Tile Out', icon: '🔍', gold: 15, run: runOddTileOut }
 };
 const SUITS = {
     bamboo: { name: 'Bamboo', icon: '🎋' },
@@ -29,7 +30,7 @@ const tilesOfSuit = suit => TILE_CATALOG.filter(t => t.suit === suit);
 
 // Counts levels; true when it's time for a little game after this one.
 function breakIsDue(level) {
-    if (isTrainingLevel(level) || !settings.breakEvery || !settings.breakKinds.length) return false;
+    if (!settings.breakEvery || !settings.breakKinds.some(k => BREAKS[k])) return false;
     state.breakCount++;
     if (state.breakCount < settings.breakEvery) return false;
     state.breakCount = 0;

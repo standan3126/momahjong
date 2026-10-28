@@ -9,60 +9,22 @@
     <link rel="icon" type="image/png" href="icons/icon-192.png">
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/shared/v1/kit.css">
+    <link rel="stylesheet" href="/shared/v1/settings.css">
     <link rel="stylesheet" href="css/game.css">
 </head>
 <body class="bamboo-bg select-none">
+    <!-- The page background on its own layer, so the night glass has something to tint. -->
+    <div id="bgLayer" aria-hidden="true"></div>
 
-    <!-- TOP HUD BAR -->
-    <header id="hud" class="safe-top w-full shrink-0 z-30 pb-1 bg-gradient-to-b from-black/70 via-black/40 to-transparent">
-        <div class="max-w-xl mx-auto grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-1.5">
-
-            <!-- Level & Board Info -->
-            <div id="levelBox" class="flex items-center gap-1.5 min-w-0 bg-emerald-950/85 border border-amber-500/40 rounded-2xl pl-1 pr-2 py-1 shadow-lg">
-                <div id="levelBadge" class="min-w-[34px] h-[34px] px-1 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-emerald-950 font-extrabold text-sm shadow-inner">1</div>
-                <div class="min-w-0">
-                    <div id="formationName" class="text-[10px] uppercase tracking-wide text-amber-300/90 font-bold leading-none truncate max-w-[96px] sm:max-w-[180px]">Sanctuary</div>
-                    <div class="text-[12px] font-extrabold text-white flex items-center gap-2 mt-1 leading-none whitespace-nowrap">
-                        <span id="tilesBox" title="Tiles left">🀄<strong id="tilesLeftCount" class="text-amber-300 ml-0.5">0</strong></span>
-                        <span id="pairsBox" title="Free pairs">✅<strong id="availPairsCount" class="text-emerald-300 ml-0.5">0</strong></span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Rank & Stars -->
-            <div id="rankBox" onclick="openModal('guideModal')" class="min-w-0 bg-emerald-950/85 border border-emerald-600/40 rounded-2xl px-2.5 py-1.5 shadow-lg cursor-pointer active:scale-95 transition">
-                <div class="flex items-center justify-between gap-1 text-[10px] font-bold leading-none">
-                    <span id="rankTitle" class="text-amber-300 truncate min-w-0">🌱 Novice</span>
-                    <span id="starTotal" class="text-white font-extrabold shrink-0">⭐ 0</span>
-                </div>
-                <div class="w-full h-2 bg-black/50 rounded-full overflow-hidden mt-1.5 border border-emerald-700/50">
-                    <div id="rankProgressBar" class="h-full bg-gradient-to-r from-emerald-400 via-amber-400 to-amber-500 transition-all duration-500" style="width: 0%"></div>
-                </div>
-            </div>
-
-            <!-- Quick Utility Buttons -->
-            <div class="flex items-center gap-1">
-                <button id="mapBtn" onclick="openMap()" title="Map" aria-label="Map" class="w-9 h-9 rounded-xl bg-emerald-950/85 border border-amber-500/40 flex items-center justify-center text-lg active:scale-90 transition shadow-lg">🗺️</button>
-                <button id="guideBtn" onclick="openModal('guideModal')" title="Guide" class="w-9 h-9 rounded-xl bg-emerald-950/85 border border-amber-500/40 flex items-center justify-center text-amber-300 active:scale-90 transition shadow-lg">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
-                    </svg>
-                </button>
-                <button id="settingsBtn" onclick="openModal('settingsModal')" title="Settings" class="w-9 h-9 rounded-xl bg-emerald-950/85 border border-amber-500/40 flex items-center justify-center text-amber-300 active:scale-90 transition shadow-lg">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-                    </svg>
-                </button>
-            </div>
+    <!-- TOP BAR: GameHub's frame puts Home top left and the Settings gear top right; between
+         them only the level (with its coins), tiles left and matches available. -->
+    <header id="hud" class="hud safe-top w-full shrink-0 z-30">
+        <div id="levelInfo" class="level-info">
+            <div class="level-line"><strong id="levelName">Level 1</strong><span id="coinsBox" class="coins-box"><span class="hub-coin" role="img" aria-label="coins"></span><strong id="coinsCount">30</strong></span></div>
+            <div class="board-line"><span><strong id="tilesLeftCount">0</strong> tiles</span> · <span><strong id="availPairsCount">0</strong> <span id="matchesWord">matches</span></span></div>
         </div>
-
-        <!-- Status Sub-Bar -->
-        <div class="max-w-xl mx-auto mt-1 flex items-center gap-1.5 h-6 min-w-0">
-            <div id="eagleEyeActiveBadge" class="hidden shrink-0 items-center gap-1 bg-sky-500/25 border border-sky-400/60 text-sky-200 text-[10px] font-bold px-2 py-0.5 rounded-full animate-pulse">🦅 Eagle Eye</div>
-            <div id="modifierBadge" class="hidden truncate min-w-0 text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-500/25 border border-purple-400/60 text-purple-100"></div>
-            <div id="goldBox" title="Gold" class="ml-auto shrink-0 flex items-center gap-1 text-[12px] font-extrabold bg-black/40 border border-amber-400/40 rounded-full px-2.5 py-0.5 text-amber-200"><span class="coin" role="img" aria-label="gold"></span> <span id="goldCount" class="text-amber-300">0</span></div>
-        </div>
+        <button id="modifierBadge" type="button" onclick="explainSpecial()" class="hidden modifier-badge" aria-label="What is this level?"></button>
     </header>
 
     <!-- MAIN BOARD STAGE -->
@@ -75,35 +37,23 @@
         </button>
     </main>
 
-    <!-- BOTTOM POWER-UP DOCK -->
+    <!-- BOTTOM BAR: the three helpers, paid in coins -->
     <footer id="dock" class="safe-bottom w-full shrink-0 pt-1.5 z-30 bg-gradient-to-t from-black/80 via-black/45 to-transparent">
-        <div class="max-w-xl mx-auto grid grid-cols-5 gap-1.5">
-            <button id="btnHint" onclick="useHint()" class="relative bg-gradient-to-b from-emerald-800/90 to-emerald-950/95 border border-amber-400/40 rounded-2xl min-h-[58px] py-1.5 px-0.5 flex flex-col items-center justify-center shadow-lg active:scale-95 transition">
-                <span class="text-2xl leading-none">💡</span>
-                <span class="text-[10px] font-bold text-amber-100 mt-1 leading-none">Hint</span>
-                <span id="badgeHint" class="absolute -top-1.5 -right-1 min-w-[22px] h-[22px] px-1 rounded-full bg-amber-400 text-emerald-950 font-extrabold text-xs flex items-center justify-center shadow border border-white">0</span>
+        <div class="max-w-md mx-auto grid grid-cols-3 gap-2">
+            <button id="btnHint" type="button" onclick="useHint()" class="dock-tool">
+                <span class="dock-icon">💡</span>
+                <span class="dock-name">Hint</span>
+                <span class="dock-price"><span class="hub-coin" role="img" aria-label="coins"></span> <span id="price-hint"></span></span>
             </button>
-            <button id="btnShuffle" onclick="useShuffle()" class="relative bg-gradient-to-b from-emerald-800/90 to-emerald-950/95 border border-amber-400/40 rounded-2xl min-h-[58px] py-1.5 px-0.5 flex flex-col items-center justify-center shadow-lg active:scale-95 transition">
-                <span class="text-2xl leading-none">🌪️</span>
-                <span class="text-[10px] font-bold text-amber-100 mt-1 leading-none">Shuffle</span>
-                <span id="badgeShuffle" class="absolute -top-1.5 -right-1 min-w-[22px] h-[22px] px-1 rounded-full bg-amber-400 text-emerald-950 font-extrabold text-xs flex items-center justify-center shadow border border-white">0</span>
+            <button id="btnShuffle" type="button" onclick="useShuffle()" class="dock-tool">
+                <span class="dock-icon">🌪️</span>
+                <span class="dock-name">Shuffle</span>
+                <span class="dock-price"><span class="hub-coin" role="img" aria-label="coins"></span> <span id="price-shuffle"></span></span>
             </button>
-            <button id="btnUndo" onclick="useUndo()" class="relative bg-gradient-to-b from-emerald-800/90 to-emerald-950/95 border border-amber-400/40 rounded-2xl min-h-[58px] py-1.5 px-0.5 flex flex-col items-center justify-center shadow-lg active:scale-95 transition">
-                <span class="text-2xl leading-none">📜</span>
-                <span class="text-[10px] font-bold text-amber-100 mt-1 leading-none">Undo</span>
-                <span id="badgeUndo" class="absolute -top-1.5 -right-1 min-w-[22px] h-[22px] px-1 rounded-full bg-amber-400 text-emerald-950 font-extrabold text-xs flex items-center justify-center shadow border border-white">0</span>
-            </button>
-            <button id="btnTorch" onclick="useDragonTorch()" class="relative bg-gradient-to-b from-amber-800/80 to-emerald-950/95 border border-amber-400/60 rounded-2xl min-h-[58px] py-1.5 px-0.5 flex flex-col items-center justify-center shadow-lg active:scale-95 transition">
-                <span class="text-2xl leading-none">🔥</span>
-                <span class="text-[10px] font-bold text-amber-200 mt-1 leading-none">Torch</span>
-                <span id="badgeTorch" class="absolute -top-1.5 -right-1 min-w-[22px] h-[22px] px-1 rounded-full bg-orange-400 text-emerald-950 font-extrabold text-xs flex items-center justify-center shadow border border-white">0</span>
-                <span id="newTorch" class="new-badge hidden">NEW</span>
-            </button>
-            <button id="btnEagle" onclick="useEagleEye()" class="relative bg-gradient-to-b from-sky-900/80 to-emerald-950/95 border border-sky-400/50 rounded-2xl min-h-[58px] py-1.5 px-0.5 flex flex-col items-center justify-center shadow-lg active:scale-95 transition">
-                <span class="text-2xl leading-none">🦅</span>
-                <span class="text-[10px] font-bold text-sky-200 mt-1 leading-none">Eagle</span>
-                <span id="badgeEagle" class="absolute -top-1.5 -right-1 min-w-[22px] h-[22px] px-1 rounded-full bg-sky-400 text-emerald-950 font-extrabold text-xs flex items-center justify-center shadow border border-white">0</span>
-                <span id="newEagle" class="new-badge hidden">NEW</span>
+            <button id="btnUndo" type="button" onclick="useUndo()" class="dock-tool">
+                <span class="dock-icon">📜</span>
+                <span class="dock-name">Undo</span>
+                <span class="dock-price"><span class="hub-coin" role="img" aria-label="coins"></span> <span id="price-undo"></span></span>
             </button>
         </div>
     </footer>
@@ -113,259 +63,32 @@
     <div id="popLayer" class="pointer-events-none fixed inset-0 z-[57]"></div>
 
     <!-- ==========================================
-         IMPERIAL CHANCE CHEST MODAL (END OF LEVEL)
+         LEVEL COMPLETE
          ========================================== -->
-    <div id="chestModal" class="hidden fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center safe-pad">
-        <div class="pop-in w-full max-w-md max-h-full overflow-y-auto bg-gradient-to-b from-emerald-900 via-emerald-950 to-black border-2 border-amber-400 rounded-3xl p-4 text-center shadow-[0_0_50px_rgba(245,158,11,0.4)] relative">
-            <div class="inline-block px-3 py-1 rounded-full bg-amber-400/20 border border-amber-400/50 text-amber-300 text-xs font-extrabold tracking-widest uppercase">
-                Level <span id="completedLevelNum">1</span> Complete!
-            </div>
-            <div id="starRow" class="flex justify-center gap-3 text-4xl mt-2 leading-none">
-                <span class="star">⭐</span><span class="star">⭐</span><span class="star">⭐</span>
-            </div>
-            <div id="levelStats" class="text-[11px] text-emerald-200/90 mt-1.5 font-semibold"></div>
-            <div id="levelGold" class="mt-2 text-lg font-extrabold text-amber-300"></div>
-
-            <div id="chestSection">
-            <h2 class="text-xl font-serif-asian font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-yellow-400 to-amber-200 mt-2">
-                Treasure Chest
-            </h2>
-
-            <div id="wheelWrap" class="relative mx-auto my-3 flex items-center justify-center">
-                <div id="wheelPointer" class="absolute -top-3 left-1/2 z-20 drop-shadow-[0_4px_6px_rgba(0,0,0,0.8)]" style="transform: translateX(-50%); transform-origin: 50% 20%;">
-                    <svg width="34" height="34" viewBox="0 0 34 34"><polygon points="17,32 4,6 30,6" fill="#f59e0b" stroke="#ffffff" stroke-width="2.5"/></svg>
-                </div>
-                <div id="prizeWheel" class="w-full h-full rounded-full shadow-[0_0_30px_rgba(251,191,36,0.45)] border-4 border-amber-400 overflow-hidden">
-                    <svg id="wheelSvg" viewBox="0 0 200 200" class="w-full h-full"></svg>
-                </div>
-                <div class="absolute w-14 h-14 rounded-full bg-gradient-to-br from-amber-300 via-amber-500 to-amber-700 border-2 border-white shadow-xl flex items-center justify-center text-2xl z-10">🎁</div>
-            </div>
-
-
-            <div id="prizeResultBox" class="min-h-[76px] bg-black/45 border border-amber-500/30 rounded-2xl p-2.5 mb-3 flex items-center gap-3 text-left">
-                <div id="prizeResultIcon" class="text-5xl leading-none w-14 text-center shrink-0">🎁</div>
-                <div class="min-w-0">
-                    <div id="prizeResultTitle" class="text-base font-extrabold text-amber-300 leading-tight">Tap SPIN to claim your reward!</div>
-                    <div id="prizeResultDesc" class="text-xs text-emerald-200 mt-0.5">A chest waits every 5th level.</div>
-                    <div id="prizeResultInv" class="text-xs font-extrabold text-white mt-1"></div>
-                </div>
-            </div>
-
-            </div>
-
-            <div class="flex gap-3 mt-3">
-                <button id="mapAfterBtn" onclick="closeModal('chestModal'); afterLevel({ toMap: true })" class="px-4 py-3.5 rounded-2xl bg-black/40 border border-amber-400/50 text-amber-200 font-extrabold text-base active:scale-95 transition" aria-label="Map">🗺️</button>
-                <button id="spinChestBtn" onclick="spinChanceChest()" class="flex-1 py-3.5 rounded-2xl bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500 text-emerald-950 font-extrabold text-base shadow-[0_0_25px_rgba(251,191,36,0.6)] active:scale-95 transition">
-                    🎰 SPIN!
-                </button>
-                <button id="nextLevelBtn" onclick="proceedToNextLevel()" class="hidden flex-1 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-400 to-teal-500 text-emerald-950 font-extrabold text-base shadow-[0_0_25px_rgba(52,211,153,0.6)] active:scale-95 transition">
-                    NEXT LEVEL ➡️
-                </button>
-            </div>
-
-            <div id="chestLegendWrap">
-            <div class="text-[10px] font-bold uppercase tracking-widest text-emerald-300/70 mt-3 mb-1.5">Possible treasures</div>
-            <div id="prizeLegend" class="grid grid-cols-4 gap-1.5"></div>
+    <div id="completeModal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center safe-pad">
+        <div class="pop-in w-full max-w-sm bg-gradient-to-b from-emerald-900 via-emerald-950 to-black border-2 border-amber-400 rounded-3xl p-5 text-center shadow-2xl">
+            <div class="text-5xl leading-none">⭐</div>
+            <h2 class="text-xl font-serif-asian font-extrabold text-amber-300 mt-2">Level <span id="completedLevelNum">1</span> complete</h2>
+            <div id="levelGold" class="mt-3 text-base font-extrabold text-amber-200 space-y-1"></div>
+            <div class="flex flex-col gap-2 mt-5">
+                <button id="nextLevelBtn" type="button" onclick="proceedToNextLevel()" class="w-full py-3.5 rounded-2xl bg-gradient-to-r from-amber-400 to-amber-500 text-emerald-950 font-extrabold text-base active:scale-95 transition">Next level</button>
+                <button type="button" onclick="afterLevel({ toMap: true })" class="w-full py-3 rounded-2xl bg-emerald-800 border border-amber-400/40 text-amber-200 font-extrabold text-sm active:scale-95 transition">Levels</button>
             </div>
         </div>
     </div>
 
     <!-- ==========================================
-         NO MOVES REMAINING MODAL
+         NO MATCHES LEFT: a calm card with the ways forward
          ========================================== -->
     <div id="noMovesModal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center safe-pad">
         <div class="pop-in w-full max-w-sm bg-emerald-950 border-2 border-amber-400 rounded-3xl p-5 text-center shadow-2xl">
             <div class="text-4xl mb-2">🏮</div>
-            <h3 class="text-xl font-serif-asian font-extrabold text-amber-300">No Free Pairs Left!</h3>
-            <p class="text-xs text-emerald-100/90 mt-1 mb-4">The winds have shifted and no open matches remain. Pick a rescue:</p>
+            <h3 class="text-xl font-serif-asian font-extrabold text-amber-300">No matches left</h3>
+            <p id="stuckNote" class="text-sm text-emerald-100/90 mt-2 mb-4 leading-relaxed"></p>
             <div class="flex flex-col gap-2.5">
-                <button onclick="closeModal('noMovesModal'); useShuffle(true);" class="w-full py-3 rounded-2xl bg-gradient-to-r from-amber-400 to-amber-500 text-emerald-950 font-extrabold text-sm shadow-lg active:scale-95 transition">
-                    🌪️ Shuffle (free rescue if you have none)
-                </button>
-                <button onclick="closeModal('noMovesModal'); useUndo();" class="w-full py-3 rounded-2xl bg-gradient-to-r from-sky-500 to-indigo-500 text-white font-extrabold text-sm shadow-lg active:scale-95 transition">
-                    📜 Undo Last Pair
-                </button>
-                <button onclick="closeModal('noMovesModal'); useDragonTorch();" class="w-full py-3 rounded-2xl bg-gradient-to-r from-orange-500 to-red-500 text-white font-extrabold text-sm shadow-lg active:scale-95 transition">
-                    🔥 Dragon Torch
-                </button>
-                <button onclick="restartLevel()" class="w-full py-2.5 rounded-2xl bg-emerald-900 border border-emerald-600 text-emerald-200 font-bold text-xs active:scale-95 transition">
-                    🔄 Restart Level
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- ==========================================
-         GUIDE MODAL
-         ========================================== -->
-    <div id="guideModal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center safe-pad">
-        <div class="pop-in w-full max-w-md max-h-full bg-emerald-950 border-2 border-amber-400/80 rounded-3xl p-4 flex flex-col shadow-2xl">
-            <div class="flex items-center justify-between border-b border-emerald-800 pb-3">
-                <h3 class="text-lg font-serif-asian font-extrabold text-amber-300">🎋 Sanctuary Guide</h3>
-                <button onclick="closeModal('guideModal')" class="w-9 h-9 rounded-full bg-emerald-900 text-amber-300 font-bold">✕</button>
-            </div>
-
-            <div class="overflow-y-auto space-y-3 my-3 pr-1 text-xs text-emerald-100 min-h-0">
-                <div class="bg-black/35 border border-emerald-700/50 rounded-2xl p-3 space-y-1.5">
-                    <div class="font-extrabold text-amber-300 text-sm">🀄 How to Play</div>
-                    <div>Tap two <strong>identical free tiles</strong> to clear them. Clear every tile to win!</div>
-                    <div>A tile is <strong>free</strong> when nothing sits on top of it and its <strong>left or right</strong> side is open. Blocked tiles look dimmed.</div>
-                    <div>Coloured tile edges show the layer: <span class="text-emerald-300">jade</span> → <span class="text-teal-300">teal</span> → <span class="text-amber-300">gold</span> → <span class="text-red-300">crimson</span> → <span class="text-violet-300">violet</span> (higher). Dots in the corner count the storeys.</div>
-                    <div>Quick matches play a little tune. There's no clock: take your time.</div>
-                </div>
-
-                <div class="bg-black/35 border border-amber-500/30 rounded-2xl p-3">
-                    <div class="font-extrabold text-amber-300 text-sm mb-1">⭐ Stars, Gold &amp; Rank</div>
-                    <p class="text-emerald-200/90 leading-relaxed">
-                        Every level gives up to <strong class="text-amber-300">three stars</strong>: ⭐ for finishing, ⭐⭐ with at most one hint or undo, ⭐⭐⭐ with no power-ups at all. You also earn <strong class="text-amber-300">gold <span class="coin" role="img" aria-label="gold"></span></strong> (more for more stars, double on bosses, half on replays).
-                    </p>
-                    <p class="text-emerald-200/90 leading-relaxed mt-1.5">
-                        Your stars raise your <strong class="text-amber-300">Sanctuary Rank</strong>. Higher ranks sometimes grant a free <strong class="text-emerald-300">Divine Blessing</strong> match.
-                    </p>
-                    <div class="mt-2 grid grid-cols-2 gap-1.5 text-[11px]">
-                        <div class="bg-emerald-900/60 p-1.5 rounded-lg">🌱 <strong>Novice:</strong> 0 ⭐</div>
-                        <div class="bg-emerald-900/60 p-1.5 rounded-lg">🥈 <strong>Silver:</strong> 25 ⭐ • 5%</div>
-                        <div class="bg-emerald-900/60 p-1.5 rounded-lg">🟢 <strong>Jade:</strong> 75 ⭐ • 9%</div>
-                        <div class="bg-emerald-900/60 p-1.5 rounded-lg">🟡 <strong>Sage:</strong> 150 ⭐ • 12%</div>
-                        <div class="bg-emerald-900/60 p-1.5 rounded-lg col-span-2">👑 <strong>Imperial Master:</strong> 300 ⭐ • 16% Blessing</div>
-                    </div>
-                </div>
-
-                <div class="bg-black/35 border border-emerald-700/50 rounded-2xl p-3 space-y-1.5">
-                    <div class="font-extrabold text-amber-300 text-sm">🎁 Power-Ups</div>
-                    <div>Your own are used first. When you have none, the badge shows a price and tapping buys one with gold.</div>
-                    <div><strong>📜 Undo</strong> (10 <span class="coin" role="img" aria-label="gold"></span>): Brings your last matched pair back.</div>
-                    <div><strong>💡 Hint</strong> (15 <span class="coin" role="img" aria-label="gold"></span>): Highlights a free matching pair.</div>
-                    <div><strong>🌪️ Shuffle</strong> (25 <span class="coin" role="img" aria-label="gold"></span>): Rearranges the tiles so there are moves again. Free when you're completely stuck.</div>
-                    <div><strong>🔥 Dragon Torch</strong> (40 <span class="coin" role="img" aria-label="gold"></span>): Burns away a matching pair, even a buried one.</div>
-                    <div><strong>🦅 Eagle Eye</strong> (40 <span class="coin" role="img" aria-label="gold"></span>): Unmasks every Mystery tile for the rest of the level.</div>
-                </div>
-
-                <div class="bg-black/35 border border-emerald-700/50 rounded-2xl p-3 space-y-1.5">
-                    <div class="font-extrabold text-amber-300 text-sm">✨ Special Tiles &amp; Levels</div>
-                    <div><strong class="text-yellow-300">🌟 Golden tiles:</strong> +5 gold when you match them.</div>
-                    <div><strong class="text-amber-300">🎁 Treasure chest:</strong> every 5th level, one spin for gold or power-ups.</div>
-                    <div><strong class="text-purple-300">🔮 Mystery tiles:</strong> Hidden until they become free. Tap to peek.</div>
-                    <div><strong class="text-red-300">👹 Boss boards</strong> come every 10 levels from 20. Each opens with 16 ⭐ from the 9 levels before it; replay a level or two from the 🗺️ map if you need more. Some levels have a special <strong class="text-purple-300">modifier</strong>.</div>
-                </div>
-
-                <button onclick="replayTraining()" class="w-full py-2.5 rounded-2xl bg-emerald-800 border border-amber-400/40 text-amber-200 font-extrabold text-xs active:scale-95 transition">
-                    🎓 Replay Sanctuary Training
-                </button>
-            </div>
-
-            <button onclick="closeModal('guideModal')" class="w-full py-3 rounded-2xl bg-amber-400 text-emerald-950 font-extrabold text-sm shrink-0">
-                Back to Sanctuary
-            </button>
-        </div>
-    </div>
-
-    <!-- ==========================================
-         SETTINGS MODAL
-         ========================================== -->
-    <div id="settingsModal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center safe-pad">
-        <div class="pop-in w-full max-w-sm max-h-full overflow-y-auto bg-emerald-950 border-2 border-amber-400/80 rounded-3xl p-4 flex flex-col shadow-2xl">
-            <div class="flex items-center justify-between border-b border-emerald-800 pb-3 mb-3">
-                <h3 onclick="settingsHeadingTap()" class="text-lg font-serif-asian font-extrabold text-amber-300 select-none">⚙️ Settings</h3>
-                <button onclick="closeModal('settingsModal')" aria-label="Close settings" class="w-9 h-9 rounded-full bg-emerald-900 text-amber-300 font-bold">✕</button>
-            </div>
-
-            <!-- Grown-up tools, hidden: 5 taps on the heading, then the family code -->
-            <form id="secretCodeRow" class="hidden flex gap-2 mb-3" onsubmit="event.preventDefault(); checkSecretCode()">
-                <input id="secretCode" type="password" inputmode="numeric" autocomplete="off" aria-label="Code" placeholder="Code" class="flex-1 min-w-0 bg-black/40 border border-amber-400/40 rounded-xl px-3 py-2 text-amber-100">
-                <button type="submit" class="px-4 rounded-xl bg-amber-400 text-emerald-950 font-extrabold">OK</button>
-            </form>
-            <div id="grownUpTools" class="hidden bg-black/35 p-3 rounded-2xl border border-amber-400/50 mb-3 text-sm">
-                <div class="font-bold text-amber-100">🔧 Set progress by hand</div>
-                <div class="text-[11px] text-emerald-300">For when progress is lost.</div>
-                <label class="flex items-center justify-between mt-2 text-emerald-200">Level <input id="setLevelInput" type="number" min="1" inputmode="numeric" aria-label="Level" class="w-24 bg-black/40 border border-amber-400/40 rounded-lg px-2 py-1 text-amber-100"></label>
-                <label class="flex items-center justify-between mt-2 text-emerald-200">Gold <input id="setGoldInput" type="number" min="0" inputmode="numeric" aria-label="Gold" class="w-24 bg-black/40 border border-amber-400/40 rounded-lg px-2 py-1 text-amber-100"></label>
-                <button onclick="setProgressByHand()" class="w-full mt-2 py-2 rounded-xl bg-amber-400 text-emerald-950 font-extrabold">Set</button>
-                <div id="grownUpNote" role="status" class="text-[11px] text-amber-200 mt-1"></div>
-            </div>
-
-            <div class="space-y-2 text-sm">
-                <label class="flex items-center justify-between bg-black/35 p-3 rounded-2xl border border-emerald-800 cursor-pointer">
-                    <span class="font-bold text-amber-100">🔊 Sound Effects</span>
-                    <input type="checkbox" id="toggleSound" onchange="updateSettings()" class="w-5 h-5 accent-amber-400 rounded">
-                </label>
-                <label class="flex items-center justify-between bg-black/35 p-3 rounded-2xl border border-emerald-800 cursor-pointer">
-                    <span class="font-bold text-amber-100">🎵 Zen Music</span>
-                    <input type="checkbox" id="toggleMusic" onchange="updateSettings()" class="w-5 h-5 accent-amber-400 rounded">
-                </label>
-                <div class="bg-black/35 p-3 rounded-2xl border border-emerald-800">
-                    <div class="flex items-center justify-between font-bold text-amber-100"><span>🎚️ Volume</span><span id="volumeLabel" class="text-amber-300 text-xs">80%</span></div>
-                    <input type="range" id="volumeSlider" min="0" max="100" step="5" oninput="updateSettings()" class="w-full mt-2">
-                </div>
-                <label class="flex items-center justify-between bg-black/35 p-3 rounded-2xl border border-emerald-800 cursor-pointer">
-                    <div>
-                        <div class="font-bold text-amber-100">📳 Vibration</div>
-                        <div class="text-[11px] text-emerald-300">Android only (iPhone browsers can't vibrate)</div>
-                    </div>
-                    <input type="checkbox" id="toggleHaptics" onchange="updateSettings()" class="w-5 h-5 accent-amber-400 rounded">
-                </label>
-                <label class="flex items-center justify-between bg-black/35 p-3 rounded-2xl border border-emerald-800 cursor-pointer">
-                    <div>
-                        <div class="font-bold text-amber-100">🔆 Highlight Free Tiles</div>
-                        <div class="text-[11px] text-emerald-300">Dims blocked tiles</div>
-                    </div>
-                    <input type="checkbox" id="toggleHighlightFree" onchange="updateSettings()" class="w-5 h-5 accent-amber-400 rounded">
-                </label>
-                <label class="flex items-center justify-between bg-black/35 p-3 rounded-2xl border border-emerald-800 cursor-pointer">
-                    <div>
-                        <div class="font-bold text-amber-100">⏩ Auto Next Level</div>
-                        <div class="text-[11px] text-emerald-300">Starts the next level 3 seconds after you finish</div>
-                    </div>
-                    <input type="checkbox" id="toggleAutoNext" onchange="updateSettings()" class="w-5 h-5 accent-amber-400 rounded">
-                </label>
-            </div>
-
-            <div class="mt-3 bg-black/35 p-3 rounded-2xl border border-emerald-800">
-                <div class="font-bold text-amber-100">🎲 Little games between levels</div>
-                <label class="flex items-center justify-between mt-2 text-[12px] text-emerald-200">How often
-                    <select id="breakEvery" onchange="updateSettings()" class="bg-emerald-900 text-amber-100 rounded-lg px-2 py-1 border border-amber-400/40">
-                        <option value="0">Never</option>
-                        <option value="6">Every 6 levels</option>
-                        <option value="4">Every 4 levels</option>
-                        <option value="3">Every 3 levels</option>
-                        <option value="2">Every 2 levels</option>
-                    </select>
-                </label>
-                <label class="flex items-center justify-between mt-2 text-[12px] text-emerald-200">🀄 Memory Pairs <input type="checkbox" id="breakMemory" onchange="updateSettings()" class="w-5 h-5 accent-amber-400"></label>
-                <label class="flex items-center justify-between mt-2 text-[12px] text-emerald-200">🔍 Odd Tile Out <input type="checkbox" id="breakOdd" onchange="updateSettings()" class="w-5 h-5 accent-amber-400"></label>
-                <label class="flex items-center justify-between mt-2 text-[12px] text-emerald-200">🥣 Suit Sorting <input type="checkbox" id="breakSort" onchange="updateSettings()" class="w-5 h-5 accent-amber-400"></label>
-            </div>
-
-            <div class="mt-3 bg-black/35 p-3 rounded-2xl border border-emerald-800">
-                <div class="font-bold text-amber-100">📦 Move your progress</div>
-                <div class="text-[11px] text-emerald-300">To another phone, or to GameHub.</div>
-                <div class="grid grid-cols-2 gap-2 mt-2 text-[12px] font-bold">
-                    <button onclick="makeMoveCode()" class="py-2 rounded-xl bg-emerald-800 text-amber-200 border border-amber-400/40">Get transfer code</button>
-                    <button onclick="enterMoveCode()" class="py-2 rounded-xl bg-emerald-800 text-amber-200 border border-amber-400/40">Enter a code</button>
-                    <button onclick="saveMoveFile()" class="py-2 rounded-xl bg-emerald-800 text-amber-200 border border-amber-400/40">Save backup file</button>
-                    <button onclick="loadMoveFile()" class="py-2 rounded-xl bg-emerald-800 text-amber-200 border border-amber-400/40">Load backup file</button>
-                </div>
-                <textarea id="moveCode" rows="3" aria-label="Transfer code" class="hidden w-full mt-2 bg-black/40 border border-amber-400/40 rounded-xl p-2 text-[11px] text-amber-100 break-all"></textarea>
-                <button id="useMoveCode" onclick="useMoveCode()" class="hidden w-full mt-2 py-2 rounded-xl bg-amber-400 text-emerald-950 font-extrabold text-sm">Use this code</button>
-                <div id="moveNote" role="status" class="text-[11px] text-amber-200 mt-1"></div>
-            </div>
-
-            <div class="mt-4 flex flex-col gap-2">
-                <button onclick="restartLevel()" class="w-full py-3 rounded-2xl bg-emerald-800 text-amber-200 font-extrabold text-xs border border-amber-400/40">
-                    🔄 Restart Current Level
-                </button>
-                <button id="skipTrainingBtn" onclick="skipTraining()" class="hidden w-full py-3 rounded-2xl bg-emerald-800 text-amber-200 font-extrabold text-xs border border-amber-400/40">
-                    ⏭️ Skip Training
-                </button>
-                <button onclick="goMainMenu()" class="w-full py-3 rounded-2xl bg-emerald-800 text-amber-200 font-extrabold text-xs border border-amber-400/40">
-                    💾 Main Menu / Switch Save Slot
-                </button>
-                <button onclick="goHub()" aria-label="Exit to GameHub" class="w-full py-3 rounded-2xl bg-emerald-800 text-amber-200 font-extrabold text-xs border border-amber-400/40">
-                    ‹ Back to GameHub
-                </button>
-                <button onclick="closeModal('settingsModal')" class="w-full py-3 rounded-2xl bg-amber-400 text-emerald-950 font-extrabold text-sm">
-                    Resume Game
-                </button>
+                <button id="stuckShuffle" type="button" onclick="useShuffle()" class="w-full py-3 rounded-2xl bg-gradient-to-r from-amber-400 to-amber-500 text-emerald-950 font-extrabold text-sm shadow-lg active:scale-95 transition disabled:opacity-40"></button>
+                <button type="button" onclick="restartLevel()" class="w-full py-3 rounded-2xl bg-emerald-800 border border-amber-400/40 text-amber-200 font-extrabold text-sm active:scale-95 transition">🔄 Restart this board</button>
+                <button type="button" onclick="openMap()" class="w-full py-3 rounded-2xl bg-emerald-800 border border-amber-400/40 text-amber-200 font-extrabold text-sm active:scale-95 transition">Levels</button>
             </div>
         </div>
     </div>
@@ -391,14 +114,10 @@
          THE BAMBOO PATH (LEVEL MAP)
          ========================================== -->
     <div id="mapScreen" class="hidden fixed inset-0 z-[60] bg-emerald-950 flex flex-col">
-        <header class="safe-top shrink-0 px-3 pb-2 bg-gradient-to-b from-black/80 to-black/40 border-b border-amber-400/30">
-            <div class="max-w-xl mx-auto flex items-center gap-2">
-                <div class="min-w-0 flex-1">
-                    <div class="font-serif-asian font-extrabold text-amber-300 text-lg leading-tight">The Bamboo Path</div>
-                    <div class="text-[11px] font-bold text-emerald-200 truncate"><span id="mapRank"></span> · <span id="mapStars"></span> · <span id="mapGold"></span></div>
-                </div>
-                <button onclick="mapPlay()" id="mapPlayBtn" class="shrink-0 px-3 py-2 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 text-emerald-950 font-extrabold text-sm active:scale-95 transition">▶ Play</button>
-            </div>
+        <!-- Levels: Home (top left) and the gear (top right) come from GameHub's frame. -->
+        <header class="map-head safe-top shrink-0 pb-2 bg-gradient-to-b from-black/80 to-black/40 border-b border-amber-400/30">
+            <div class="font-serif-asian font-extrabold text-amber-300 text-lg leading-tight">Levels</div>
+            <div class="text-[11px] font-bold text-emerald-200">The Bamboo Path · tap a finished level to play it again</div>
         </header>
         <div id="mapScroll" class="flex-1 min-h-0 overflow-y-auto overscroll-contain">
             <div id="mapCanvas" class="max-w-xl mx-auto"></div>
@@ -418,32 +137,24 @@
     </div>
 
     <!-- ==========================================
-         TITLE / SAVE SLOT SCREEN
+         THE LAUNCH PAGE (GameHub's .hub-launch: Play and Levels in the usual spots;
+         Hub top left and the gear top right come from the frame)
          ========================================== -->
-    <div id="titleScreen" class="fixed inset-0 z-[70] flex flex-col items-center justify-center safe-pad overflow-y-auto bamboo-bg" style="background-color:#05231a; background-image: radial-gradient(circle at 50% 30%, #155e45 0%, #07291e 60%, #031710 100%);">
-        <button onclick="goHub()" aria-label="Exit to GameHub" class="safe-top absolute top-3 left-3 px-3 py-2 rounded-full bg-emerald-950/85 border border-amber-400/50 text-amber-200 font-extrabold text-sm active:scale-95 transition">‹ GameHub</button>
-        <div id="titleTiles" class="flex items-end justify-center gap-3 mb-4"></div>
-        <h1 class="font-serif-asian font-extrabold text-4xl text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-yellow-400 to-amber-200 text-center leading-tight">Jade Sanctuary</h1>
-        <div class="text-amber-300/90 tracking-[0.45em] text-xs font-bold mt-1">MAHJONG</div>
-        <div id="slotList" class="w-full max-w-sm mt-6 space-y-3"></div>
-        <div class="mt-4 text-[11px] text-emerald-300/70 text-center">Tap a save slot to play • progress saves automatically</div>
-    </div>
-
-    <!-- ==========================================
-         TUTORIAL COACH MARKS
-         ========================================== -->
-    <div id="coachLayer" class="hidden">
-        <div id="coachSpot"></div>
-        <div id="coachFinger">👆</div>
-        <div id="coachBubble">
-            <div id="coachTitle" class="font-serif-asian font-extrabold text-amber-300 text-base leading-tight"></div>
-            <div id="coachText" class="text-sm text-white mt-1 leading-snug"></div>
-            <div class="flex items-center justify-between mt-2.5 gap-2">
-                <button id="coachSkip" onclick="skipTraining()" class="text-[11px] text-emerald-300/80 underline font-bold">Skip training</button>
-                <button id="coachNextBtn" onclick="coachNext()" class="ml-auto px-4 py-2 rounded-xl bg-amber-400 text-emerald-950 font-extrabold text-sm active:scale-95 transition">Got it ▶</button>
-            </div>
+    <main id="launch" class="hub-launch launch">
+        <div id="titleTiles" class="flex items-end justify-center gap-3 mt-2"></div>
+        <header class="hub-launch-head">
+            <h1 class="font-serif-asian font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-yellow-400 to-amber-200">Momahjong</h1>
+            <p class="text-amber-300/90 tracking-[0.3em] text-xs font-bold">JADE SANCTUARY MAHJONG</p>
+        </header>
+        <p id="launchWhere" class="launch-where"></p>
+        <div class="hub-launch-actions">
+            <button type="button" class="hub-play" onclick="launchPlay()">Play</button>
+            <button type="button" id="launchLevels" class="hub-levels" onclick="openMap()" hidden>Levels</button>
         </div>
-    </div>
+    </main>
+
+    <!-- Night: warm glass over everything (no blue light), like a phone's night shift. -->
+    <div id="nightGlass" aria-hidden="true"></div>
 
     <!-- The game, in order: each file is one numbered section; they share one global scope. -->
     <script src="js/sound.js"></script>
@@ -451,20 +162,19 @@
     <script src="js/tiles.js"></script>
     <script src="js/random.js"></script>
     <script src="js/formations.js"></script>
-    <script src="js/lessons.js"></script>
     <script src="js/levels.js"></script>
-    <script src="js/state.js"></script>
     <script src="js/economy.js"></script>
+    <script src="js/state.js"></script>
     <script src="js/board.js"></script>
     <script src="js/play.js"></script>
     <script src="js/powerups.js"></script>
-    <script src="js/chest.js"></script>
-    <script src="js/coach.js"></script>
+    <script src="js/complete.js"></script>
     <script src="js/ui.js"></script>
     <script src="js/map.js"></script>
     <script src="js/minigames.js"></script>
-    <script src="js/gamehub.js"></script>
     <script src="js/debug.js"></script>
     <script src="js/boot.js"></script>
+    <!-- GameHub's toolbox, then the game starts (js/hub.js calls startGame). -->
+    <script type="module" src="js/hub.js"></script>
 </body>
 </html>

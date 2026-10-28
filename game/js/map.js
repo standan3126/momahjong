@@ -1,8 +1,9 @@
 /* ============================================================================
    13b. THE BAMBOO PATH: A SCROLLING MAP OF EVERY LEVEL
         Drawn in code (SVG): a bamboo path winds up through a new scene every
-        10 levels. Won levels show their stars and can be replayed; the next
-        level glows; later ones are locked. Bosses are pagodas, chests are 🎁.
+        10 levels. Finished levels show a star (a marker only) and can be
+        replayed; the next level glows; later ones are locked. Bosses are pagodas.
+        Opened by the launch page's Levels button.
    ============================================================================ */
 const MAP_W = 360;          // the map's drawing width; it scales to the screen
 const MAP_STEP = 92;        // height between two levels
@@ -10,7 +11,6 @@ const MAP_PAD = 120;        // space above the top level and below level 1
 const MAP_GAP = 74;         // extra room between chapters, for the chapter's sign
 
 const MAP_SCENES = [
-    { name: 'Sanctuary Training', sky: '#0d3324', ground: '#14462f', leaf: '#86b35a', accent: '🎓' },
     { name: 'Bamboo Grove', sky: '#123a29', ground: '#1b4d35', leaf: '#9cc56b', accent: '🎋' },
     { name: 'Koi River', sky: '#0f3a3a', ground: '#14504d', leaf: '#7fb98f', accent: '🐟' },
     { name: 'Misty Mountains', sky: '#24363a', ground: '#2f4a47', leaf: '#93b39a', accent: '⛰️' },
@@ -20,12 +20,9 @@ const MAP_SCENES = [
     { name: 'Moonlit Pond', sky: '#1a2236', ground: '#22304a', leaf: '#86a98a', accent: '🌙' },
     { name: 'Crane Peaks', sky: '#2b3330', ground: '#38443f', leaf: '#a0b88f', accent: '🕊️' }
 ];
-// Chapter 0 is training (levels 1-10); then each 10 levels is one scene, cycling forever.
+// Each 10 levels is one scene, cycling forever.
 const chapterOf = level => Math.floor((level - 1) / 10);
-const sceneOf = chapter => (chapter === 0 ? MAP_SCENES[0] : MAP_SCENES[1 + ((chapter - 1) % (MAP_SCENES.length - 1))]);
-
-// The level the player is on, even while replaying an old one.
-const mainLevel = () => state.replayFrom ?? (state.levelDone ? nextLevelAfter(state.level) : state.level);
+const sceneOf = chapter => MAP_SCENES[chapter % MAP_SCENES.length];
 
 function mapPoint(level, lastLevel) {
     const y = MAP_PAD + (lastLevel - level) * MAP_STEP + (chapterOf(lastLevel) - chapterOf(level)) * MAP_GAP;
@@ -127,28 +124,16 @@ function renderMap() {
         const boss = isBossLevel(l);
         const r = boss ? 26 : here ? 23 : 19;
         const fill = here ? 'url(#nodeGold)' : won ? 'url(#nodeJade)' : '#3f4a46';
-        let g = `<g class="map-node${here ? ' map-here' : ''}" data-level="${l}" role="button" aria-label="Level ${l}${won ? `, ${starsOf(l)} stars` : here ? ', play' : ', locked'}" tabindex="0">`;
+        let g = `<g class="map-node${here ? ' map-here' : ''}" data-level="${l}" role="button" aria-label="Level ${l}${won ? ', finished' : here ? ', play' : ', locked'}" tabindex="0">`;
         g += `<circle cx="${x}" cy="${y}" r="${r + 10}" fill="transparent"/>`;
         if (here) g += `<circle class="map-ring" cx="${x}" cy="${y}" r="${r + 6}" fill="none" stroke="#fde68a" stroke-width="3"/>`;
         g += `<circle cx="${x}" cy="${y + 3}" r="${r}" fill="#000" opacity="0.3"/>`;
         g += `<circle cx="${x}" cy="${y}" r="${r}" fill="${fill}" stroke="${boss ? '#f87171' : '#fde68a'}" stroke-width="${boss ? 3.5 : 2}" stroke-opacity="${won || here ? 1 : 0.35}"/>`;
         if (boss) g += `<text x="${x}" y="${y - r - 6}" text-anchor="middle" font-size="22">🏯</text>`;
-        else if (isChestLevel(l)) g += `<text x="${x + r + 4}" y="${y - r + 8}" font-size="16">🎁</text>`;
         g += `<text x="${x}" y="${y + 5}" text-anchor="middle" font-size="${l > 99 ? 13 : 15}" font-weight="800" fill="${won || here ? '#062a1c' : '#9ca3af'}">${l}</text>`;
-        if (won && !isTrainingLevel(l)) {
-            const n = starsOf(l);
-            for (let i = 0; i < 3; i++) g += `<text x="${x - 16 + i * 16}" y="${y + r + 15}" text-anchor="middle" font-size="12" opacity="${i < n ? 1 : 0.25}">⭐</text>`;
-        } else if (won) {
-            g += `<text x="${x}" y="${y + r + 15}" text-anchor="middle" font-size="12">🎓</text>`;
-        } else if (!here) {
-            g += `<text x="${x + r - 4}" y="${y + r - 2}" font-size="11">🔒</text>`;
-        }
-        if (boss && l >= current) {
-            const gate = bossGate(l);
-            const label = gate.open ? '🔓 open' : `🔒 ${gate.have} / ${gate.need} ⭐`;
-            g += `<rect x="${x - 42}" y="${y + r + 4}" width="84" height="20" rx="10" fill="#062a1c" fill-opacity="0.9"/>`;
-            g += `<text x="${x}" y="${y + r + 18}" text-anchor="middle" font-size="11" font-weight="800" fill="${gate.open ? '#86efac' : '#fca5a5'}">${label}</text>`;
-        }
+        // One star for a finished level: it only marks the level as done.
+        if (won && state.stars[l]) g += `<text x="${x}" y="${y + r + 15}" text-anchor="middle" font-size="13">⭐</text>`;
+        else if (!won && !here) g += `<text x="${x + r - 4}" y="${y + r - 2}" font-size="11">🔒</text>`;
         svg += g + '</g>';
     }
 
@@ -157,15 +142,13 @@ function renderMap() {
         <radialGradient id="nodeGold" cx="40%" cy="35%"><stop offset="0%" stop-color="#fef3c7"/><stop offset="100%" stop-color="#f59e0b"/></radialGradient>
     </defs>`;
     $('mapCanvas').innerHTML = `<svg viewBox="0 0 ${MAP_W} ${height}" width="100%" style="display:block">${defs}${svg}</svg>`;
-    $('mapStars').textContent = `⭐ ${totalStars()}`;
-    $('mapGold').innerHTML = `${COIN} ${state.gold}`;
-    $('mapRank').textContent = getCurrentRank().name;
-    $('mapPlayBtn').textContent = `▶ Play Level ${current}`;
     return { last, height };
 }
 
 function openMap(focus = mainLevel()) {
-    hideTitle();
+    hideLaunch();
+    closeModal('noMovesModal');
+    frame.setPage('play');
     const { last, height } = renderMap();
     $('mapScreen').classList.remove('hidden');
     // Scroll so the focused level sits in the middle of the screen
@@ -181,19 +164,12 @@ function closeMap() {
     $('mapScreen').classList.add('hidden');
 }
 
-// Back from the map: carry on with the level in progress, or start the current one.
-function mapPlay() {
-    closeMap();
-    const level = mainLevel();
-    if (!state.replayFrom && state.level === level && state.tiles.length && !state.levelDone) return;
-    if (state.replayFrom) state.replayFrom = null;
-    resumeOrPlay(level);
-}
-
 // Picks up a half-played board if one is saved for this level; otherwise starts it.
 function resumeOrPlay(level) {
-    const d = currentSlot && storageGet(SLOT_KEY(currentSlot));
-    if (d && d.board && d.board.level === level && level > TRAINING_LEVELS) restoreBoard(d.board);
+    closeMap();
+    if (!state.replayFrom && state.level === level && state.tiles.length && !state.levelDone) return showBoard();
+    const d = storageGet(SAVE_KEY);
+    if (d && d.board && d.board.level === level) restoreBoard(d.board);
     else playLevel(level);
 }
 
@@ -206,21 +182,19 @@ function replayLevel(level, returnTo = mainLevel()) {
 
 function onMapTap(level) {
     const current = mainLevel();
-    if (level === current) return mapPlay();
+    if (level === current) {
+        if (state.replayFrom) state.replayFrom = null;
+        return resumeOrPlay(level);
+    }
     if (level > current) {
         SoundFX.error();
-        const gate = isBossLevel(level) ? ` It needs ${bossGate(level).need} ⭐ from levels ${level - 9}–${level - 1}.` : '';
-        return showMessage({ icon: '🔒', title: `Level ${level} is locked`, text: `Finish Level ${current} first.${gate}`, buttons: [{ label: 'OK', style: 'primary' }] });
+        return showMessage({ icon: '🔒', title: `Level ${level} is locked`, text: `Finish Level ${current} first.`, buttons: [{ label: 'OK', style: 'primary' }] });
     }
     SoundFX.ui();
-    const n = starsOf(level);
-    const lesson = isTrainingLevel(level);
     showMessage({
-        icon: lesson ? '🎓' : '🔁',
+        icon: '🔁',
         title: `Replay Level ${level}?`,
-        text: lesson
-            ? 'Play this lesson again. Lessons give no gold or stars.'
-            : `Best so far: ${n ? '⭐'.repeat(n) : 'no stars'}. Replays pay half the gold, and a better result raises your stars. You'll come back to Level ${current} after.`,
+        text: `It pays coins the same as before: 5 for finishing${isBossLevel(level) ? ' (10 for this boss)' : ''}, and its golden tiles again. You'll come back to Level ${current} after.`,
         buttons: [
             { label: `Replay Level ${level}`, style: 'primary', onClick: () => replayLevel(level) },
             { label: 'Cancel', style: 'ghost' }

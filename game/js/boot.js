@@ -1,30 +1,24 @@
 /* ============================================================================
    15. BOOT
+       js/hub.js (loaded last, as a module) plugs into GameHub's toolbox, then calls
+       startGame(): the launch page first, then a half-played board if one is saved.
    ============================================================================ */
 function onViewportChange() {
     FX.resize();
     fitBoard(false);
-    Tutorial.render();
 }
 
-window.addEventListener('load', function () {
-    loadSettings();
-    migrateLegacy();
+function startGame() {
     FX.init();
-    buildWheel();
-    buildPrizeLegend();
     buildTitleTiles();
-    syncSettingsUI();
-    showTitle();
+    const board = loadSave();
+    if (board) restoreBoard(board);
+    updateAllHUD();
+    showLaunch();
 
     window.addEventListener('resize', onViewportChange);
     if (window.visualViewport) window.visualViewport.addEventListener('resize', onViewportChange);
     window.addEventListener('orientationchange', () => setTimeout(onViewportChange, 250));
-    // Audio can only start after a user gesture (iOS)
-    document.addEventListener('pointerdown', () => {
-        SoundFX.init();
-        if (settings.music) SoundFX.startMusic();
-    }, { passive: true });
     document.addEventListener('visibilitychange', () => { if (document.hidden) saveProgress(); });
 
     if (/[?&]debug=1/.test(location.search)) {
@@ -35,4 +29,4 @@ window.addEventListener('load', function () {
         console.log(`[debug] verified ${levels.length} levels, failures:`, failures);
         spawnFloatingBanner(`Debug: ${levels.length} levels checked, ${failures.length} failures`, failures.length ? '#f87171' : '#34d399');
     }
-});
+}
